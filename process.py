@@ -135,12 +135,20 @@ def main():
     kept, dropped = [], []
     if not args.no_cards:
         print("[5/6] 抽取知识点卡片")
-        raw_cards = cards_mod.extract_cards(llm, segs)
+        raw_cards, mat_notes = cards_mod.extract_cards(llm, segs)
         wl = cards_mod.load_wordlists(ROOT / "wordlists")
         kept, dropped = cards_mod.verify_and_enrich(raw_cards, segs, wl)
-        print(f"      {len(kept)} 张卡片" +
+        cover = len({c["seg"] for c in kept})
+        nwords = sum(len(s["words"]) for s in segs)
+        print(f"      {len(kept)} 张卡片 · 覆盖 {cover}/{len(segs)} 段"
+              f"({cover*100//max(len(segs),1)}%) · 密度 {len(kept)/(nwords/100):.1f} 张/百词" +
               (f" · 剔除 {len(dropped)} 个原文中不存在的词条" if dropped else "") +
-              (f" · 考级标签使用词表 {list(wl)}" if wl else " · 考级标签由模型判断"))
+              (f" · 考级标签使用词表 {list(wl)}" if wl else ""))
+        if cover * 3 < len(segs):
+            print("      提示:覆盖率偏低。多半是素材本身口语特征少"
+                  "(教学英语/念稿播报),换成自然对话类素材会明显改善")
+        for n in dict.fromkeys(mat_notes):
+            print(f"      素材说明:{n}")
     else:
         print("[5/6] 跳过知识点卡片")
 
