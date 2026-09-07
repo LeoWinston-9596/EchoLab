@@ -22,3 +22,10 @@ _audio.wav
 # 系统
 .DS_Store
 Thumbs.db
+
+# 从网址下载的原始素材
+downloads/
+*.mp3
+
+# 收件箱队列与本机令牌
+.queue/

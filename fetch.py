@@ -22,6 +22,27 @@ def human(n):
     return f"{n/1e6:.1f} MB" if n else "未知大小"
 
 
+def youtube_report(url):
+    """YouTube 专用诊断:这个视频到底有哪些字幕、yt-dlp 说了什么。"""
+    from teco.captions import has_ytdlp, _run
+    exe = has_ytdlp()
+    if not exe:
+        print("  未安装 yt-dlp。YouTube 取字幕需要它:pip install -U yt-dlp")
+        return
+    r = _run([exe, "--version"], timeout=30)
+    print(f"  yt-dlp 版本:{(r.stdout or '').strip() or '未知'}")
+    print("  查询可用字幕中…\n")
+    r = _run([exe, "--list-subs", "--skip-download", "--no-warnings", url], timeout=120)
+    out = (r.stdout or "").strip()
+    print("\n".join("  " + l for l in out.split("\n")[:40]) if out else "  (无输出)")
+    if r.returncode != 0 and r.stderr:
+        print("\n  yt-dlp 报错:")
+        print("\n".join("    " + l for l in r.stderr.strip().split("\n")[-6:]))
+        print("\n  版本旧是最常见的原因,先试:pip install -U yt-dlp")
+        print("  若提示 Sign in to confirm you're not a bot,")
+        print("  可加 --cookies-from-browser chrome(需自行判断是否合适)")
+
+
 def analyze(url, verbose=True):
     """返回 (类型, 详情)。只读不写。"""
     s = _session()
@@ -53,6 +74,16 @@ def main():
     a = ap.parse_args()
 
     print(f"\n分析:{a.url}\n")
+    from teco.platforms import describe
+    kind0, info0, plan0 = describe(a.url)
+    if kind0 in ("youtube", "youtube_unknown"):
+        print(f"  平台:YouTube · {plan0}")
+        if info0.get("video_id"):
+            print(f"  视频 ID:{info0['video_id']}\n")
+        youtube_report(a.url)
+        print("\n  取字幕并加工:python process.py --url <网址> --title \"第N期\"")
+        print("  没有字幕时会自动改用下载识别;想禁用加 --no-fallback\n")
+        return
     try:
         kind, items = analyze(a.url)
     except IngestError as e:
