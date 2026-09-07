@@ -70,7 +70,9 @@ def update_index():
 
 def main():
     ap = argparse.ArgumentParser(description="把英文视频转成精读级学习材料")
-    ap.add_argument("video", help="视频或音频文件路径")
+    ap.add_argument("video", nargs="?", help="视频或音频文件路径")
+    ap.add_argument("--url", help="改从网址获取素材(先用 fetch.py 分析更稳妥)")
+    ap.add_argument("--rss-index", type=int, default=0, help="订阅源里第几期")
     ap.add_argument("--title", default=None, help="这一期的标题")
     ap.add_argument("--id", default=None, help="编号(默认由标题生成)")
     ap.add_argument("--llm", default="deepseek", choices=["deepseek", "kimi"],
@@ -90,7 +92,19 @@ def main():
     from teco.llm import LLM
     from teco.tools import report as env_report
 
-    src = pathlib.Path(args.video).expanduser().resolve()
+    if args.url:
+        from teco.ingest import ingest, IngestError
+        print(f"从网址获取素材:{args.url}")
+        try:
+            src = pathlib.Path(ingest(args.url, ROOT / "downloads",
+                                      rss_index=args.rss_index)).resolve()
+        except IngestError as e:
+            sys.exit(f"  {e}")
+        print(f"  已下载:{src.name}\n")
+    elif args.video:
+        src = pathlib.Path(args.video).expanduser().resolve()
+    else:
+        sys.exit("请给一个文件路径,或用 --url 指定网址。")
     if not src.exists():
         sys.exit(f"找不到文件:{src}")
 
