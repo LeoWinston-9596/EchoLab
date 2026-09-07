@@ -73,6 +73,10 @@ def main():
     ap.add_argument("video", nargs="?", help="视频或音频文件路径")
     ap.add_argument("--url", help="改从网址获取素材(先用 fetch.py 分析更稳妥)")
     ap.add_argument("--rss-index", type=int, default=0, help="订阅源里第几期")
+    ap.add_argument("--force-download", action="store_true",
+                    help="YouTube 也强制下载并跑语音识别(默认取字幕更快)")
+    ap.add_argument("--no-fallback", action="store_true",
+                    help="YouTube 取不到字幕时直接失败,不自动转为下载识别")
     ap.add_argument("--title", default=None, help="这一期的标题")
     ap.add_argument("--id", default=None, help="编号(默认由标题生成)")
     ap.add_argument("--llm", default="deepseek", choices=["deepseek", "kimi"],
@@ -92,45 +96,95 @@ def main():
     from teco.llm import LLM
     from teco.tools import report as env_report
 
+    yt_id = None          # 非空表示走 YouTube 嵌入模式:不下载、不跑语音识别
+    src = None
     if args.url:
-        from teco.ingest import ingest, IngestError
-        print(f"从网址获取素材:{args.url}")
-        try:
-            src = pathlib.Path(ingest(args.url, ROOT / "downloads",
-                                      rss_index=args.rss_index)).resolve()
-        except IngestError as e:
-            sys.exit(f"  {e}")
-        print(f"  已下载:{src.name}\n")
+        from teco.platforms import detect
+        kind, info = detect(args.url)
+        if kind == "youtube" and not args.force_download:
+            yt_id = info["video_id"]
+            print(f"YouTube 视频 {yt_id}:取官方字幕,不下载、不跑语音识别")
+        else:
+            from teco.ingest import ingest, IngestError
+            print(f"从网址获取素材({kind}):{args.url}")
+            try:
+                src = pathlib.Path(ingest(args.url, ROOT / "downloads",
+                                          rss_index=args.rss_index)).resolve()
+            except IngestError as e:
+                sys.exit(f"  {e}")
+            print(f"  已下载:{src.name}\n")
     elif args.video:
         src = pathlib.Path(args.video).expanduser().resolve()
     else:
         sys.exit("请给一个文件路径,或用 --url 指定网址。")
-    if not src.exists():
+    if src is not None and not src.exists():
         sys.exit(f"找不到文件:{src}")
 
-    title = args.title or src.stem
+    title = args.title or (src.stem if src else f"youtube-{yt_id}")
     ep_id = args.id or slugify(title)
     out_dir = LIB / ep_id
     out_dir.mkdir(parents=True, exist_ok=True)
     t0 = time.time()
 
     print(f"\n=== 处理《{title}》 ===")
-    print("环境自检:")
-    print(env_report())
-
-    # 1) 音频(没有 ffmpeg 就跳过,直接把原文件交给识别器)
-    print("\n[1/6] 提取音频")
     wav = out_dir / "_audio.wav"
-    audio_in = asr.extract_audio(src, wav) or src
-    if audio_in is src:
-        print("      未用 ffmpeg,改由内置解码器直接读取原文件")
 
-    # 2) 识别(带词级时间戳)
-    print(f"[2/6] 语音识别({args.asr_model})")
-    words, raw_segs, info = asr.transcribe(audio_in, model_size=args.asr_model)
-    if not words:
-        sys.exit("没有识别到任何语音,请检查文件是否有英文人声。")
-    print(f"      {len(words)} 个词 · 时长 {info['duration']}s")
+    if yt_id:
+        # --- YouTube:取字幕代替语音识别,整条最慢的路直接跳过 ---
+        from teco import captions
+        print("\n[1/5] 获取官方字幕")
+        words, cap_meta = None, {}
+        try:
+            words, cap_meta = captions.fetch_youtube(args.url)
+        except RuntimeError as e:
+            print(f"\n  {e}\n")
+            if args.no_fallback:
+                sys.exit("  已按 --no-fallback 停止。")
+            # 取不到字幕不等于这个视频不能用:自动转为下载音频跑识别。
+            # 慢一些、要花点钱,但用户的意图是「把这个视频做成学习材料」,
+            # 不该因为一条路不通就整个失败。
+            print("  自动改用下载音频 + 语音识别(会慢一些,并产生少量 API 费用)")
+            print("  若不想要这个回退,下次加 --no-fallback\n")
+            from teco.ingest import ingest, IngestError
+            try:
+                src = pathlib.Path(ingest(args.url, ROOT / "downloads",
+                                          prefer_audio=True)).resolve()
+            except IngestError as e2:
+                sys.exit(f"  下载也失败了:{e2}")
+            print(f"  已下载:{src.name}")
+            yt_id = None
+            out_dir = LIB / ep_id
+            out_dir.mkdir(parents=True, exist_ok=True)
+            print("\n环境自检:")
+            print(env_report())
+            print("\n[1/6] 提取音频")
+            audio_in = asr.extract_audio(src, wav) or src
+            print(f"[2/6] 语音识别({args.asr_model})")
+            words, raw_segs, info = asr.transcribe(audio_in, model_size=args.asr_model)
+            if not words:
+                sys.exit("没有识别到任何语音。")
+            print(f"      {len(words)} 个词 · 时长 {info['duration']}s")
+        if yt_id and args.title is None and cap_meta.get("title"):
+            title = cap_meta["title"][:60]
+        if yt_id:
+            info = {"language": "en",
+                    "duration": round(cap_meta.get("duration")
+                                      or (words[-1]["end"] if words else 0), 2)}
+            print(f"      {len(words)} 个词 · 时长 {info['duration']}s"
+                  f" · {'人工字幕' if cap_meta.get('kind')=='manual' else '自动字幕'}"
+                  f"({cap_meta.get('format','')})")
+    else:
+        print("环境自检:")
+        print(env_report())
+        print("\n[1/6] 提取音频")
+        audio_in = asr.extract_audio(src, wav) or src
+        if audio_in is src:
+            print("      未用 ffmpeg,改由内置解码器直接读取原文件")
+        print(f"[2/6] 语音识别({args.asr_model})")
+        words, raw_segs, info = asr.transcribe(audio_in, model_size=args.asr_model)
+        if not words:
+            sys.exit("没有识别到任何语音,请检查文件是否有英文人声。")
+        print(f"      {len(words)} 个词 · 时长 {info['duration']}s")
 
     llm = LLM(args.llm, args.llm_model, use_cache=not args.no_cache)
 
@@ -170,23 +224,27 @@ def main():
     print("[6/6] 生成元数据并保存")
     m = meta_mod.build(llm, segs, words, info["duration"], kept)
 
-    media_name = ""
-    if args.keep_media:
+    if yt_id:
+        # 不落任何媒体文件,播放时嵌入官方播放器
+        media_ref, poster = f"youtube:{yt_id}", ""
+    elif args.keep_media:
         media_ref = src.as_uri()
+        poster = ""
     else:
         media_name = "media" + src.suffix.lower()
         if not (out_dir / media_name).exists() or \
            (out_dir / media_name).stat().st_size != src.stat().st_size:
             shutil.copy2(src, out_dir / media_name)
         media_ref = media_name
-    poster = make_poster(src, out_dir / "poster.jpg") if not args.keep_media else ""
+        poster = make_poster(src, out_dir / "poster.jpg")
 
-    low = asr.low_confidence_words(words)
+    low = asr.low_confidence_words(words) if not yt_id else []
     data = {
         "id": ep_id, "title": title,
         "media": media_ref, "poster": poster,
         "duration": info["duration"], "language": info["language"],
         "created": time.strftime("%Y-%m-%d"),
+        "source_url": args.url or "",
         "n_segments": len(segs), "n_cards": len(kept),
         **m,
         "segments": segs,
