@@ -37,12 +37,27 @@ SYSTEM = """你是英语教学材料的编辑,专长是为「影子跟读/回音
 - 只输出 JSON,不要任何解释文字。"""
 
 
-def _chunk(words, size=220, overlap=0):
-    """长视频要分批送,否则单次上下文过长且容易出错。按词数切块。"""
-    out, i = [], 0
-    while i < len(words):
-        out.append(words[i:i + size])
-        i += size - overlap
+def _chunk(words, size=220, flex=45):
+    """长视频要分批送。关键是【别在句子中间切批】。
+
+    早期版本按固定词数硬切,结果每个批次边界都可能把一句话拦腰截断——
+    模型看不到下文,只能在那里强行结束一段,产出「But」这种一个词的碎片。
+    改成:在目标词数附近 ±flex 的范围里,找说话停顿最长的地方下刀。
+    """
+    out, i, n = [], 0, len(words)
+    while i < n:
+        if i + size + flex >= n:                  # 剩下的不多了,一次带走
+            out.append(words[i:])
+            break
+        lo, hi = i + size - flex, min(i + size + flex, n - 1)
+        # 词间停顿 = 下一个词的开始 - 当前词的结束
+        best, best_gap = hi, -1.0
+        for j in range(lo, hi):
+            gap = words[j + 1]["start"] - words[j]["end"]
+            if gap > best_gap:
+                best_gap, best = gap, j
+        out.append(words[i:best + 1])
+        i = best + 1
     return out
 
 
@@ -68,6 +83,31 @@ def _repair(segs, lo, hi):
     return fixed
 
 
+def _merge_tiny(segs, min_words=3):
+    """把过短的碎片并进相邻段。
+
+    一两个词的字幕对影子跟读毫无意义——复述「But」学不到任何东西。
+    并进相邻段(优先并入后一段,因为碎片通常是下一句的开头)。
+    """
+    if len(segs) < 2:
+        return segs
+    out = []
+    for s in segs:
+        n = s["e"] - s["s"] + 1
+        if n < min_words and out and (out[-1]["e"] - out[-1]["s"] + 1) < 25:
+            prev = out[-1]
+            prev["e"] = s["e"]
+            prev["zh"] = (prev["zh"] + s["zh"]).strip()
+            continue
+        out.append(s)
+    # 若首段仍过短,与第二段合并
+    if len(out) > 1 and (out[0]["e"] - out[0]["s"] + 1) < min_words:
+        out[1]["s"] = out[0]["s"]
+        out[1]["zh"] = (out[0]["zh"] + out[1]["zh"]).strip()
+        out.pop(0)
+    return out
+
+
 def segment_and_translate(llm, words, chunk_size=220, verbose=True):
     """返回 segments: [{id, start, end, en, zh, w0, w1}]"""
     chunks = _chunk(words, chunk_size)
@@ -82,6 +122,11 @@ def segment_and_translate(llm, words, chunk_size=220, verbose=True):
             f"请切分并翻译下面这段转写(词下标 {lo} 到 {hi}):\n\n{listing}",
         )
         all_segs += _repair(data.get("segments", []), lo, hi)
+
+    before = len(all_segs)
+    all_segs = _merge_tiny(all_segs)
+    if verbose and before != len(all_segs):
+        print(f"  · 合并了 {before - len(all_segs)} 个过短的碎片段")
 
     # 拼装:用词级时间戳还原每段的起止时间和原文
     by_i = {w["i"]: w for w in words}

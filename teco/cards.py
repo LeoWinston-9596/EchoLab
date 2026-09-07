@@ -13,23 +13,37 @@ TYPE_ZH = {
     "collocation": "搭配", "pattern": "口语句式", "discourse_marker": "话语标记",
 }
 
-SYSTEM = """你是英语精读教材的编者,为中国学习者从真实 vlog 口语里提炼知识点。
+SYSTEM = """你是英语精读教材的编者,为中国学习者从真实口语素材里提炼知识点。
 
-从给定的字幕片段中抽取值得学的知识点,分为六类:
-- word 单词:有学习价值的实词(跳过 the/is/and 这类无需讲解的词)
-- phrase 短语:固定的名词/形容词短语,如 a good way, first impression
-- phrasal_verb 短语动词:动词+副词/介词,如 put on, get away from, take off
-- collocation 搭配:地道的词语组合,如 impulse decision, sprain ankle
-- pattern 口语句式:可直接套用的说话框架,如 "I was just like...", "there's no way..."
-- discourse_marker 话语标记:组织话语的口语标记,如 you know, I mean, actually, right?
+【你要抓的重点】
+学习者的问题从来不是"单词量不够",而是"词都认识,但自己说不出这种话"。
+所以下面六类里,后四类的价值远高于前两类,请优先抓:
 
-抽取原则:
-1. 只选【真实出现在文本中】的表达,严禁编造原文没有的内容;
-2. 优先选对口语输出有用的:能让学习者下次自己说出来的表达;
-3. 一段字幕通常出 0-3 个知识点,宁精勿滥,不要为凑数收录简单词;
-4. quote 必须是原文中的【原句片段,逐字照抄】,用于回放定位。
+- phrasal_verb 短语动词:动词+副词/介词。原文里通常是拆开且变过位的
+  ("took it off"、"found that out"),照样要收,词条写原形(take off / find out)
+- pattern 口语句式:可直接套用的说话框架,如 "I was just like...",
+  "there's no way...", "It takes ... to ...", "the thing is..."
+- discourse_marker 话语标记:组织话语的口语标记,如 you know, I mean,
+  actually, right?, well, so, anyway。课本不教,但母语者每句都在用
+- collocation 搭配:地道的词语组合,如 impulse decision, sprain ankle, led the league
+- phrase 短语:固定的名词/形容词短语
+- word 单词:只收有学习价值的实词。**不要收 the/is/and 这类功能词,
+  也不要收 bat/ball/team 这种一看就懂的基础名词**,除非它在此处有特殊用法
 
-每个知识点输出:
+【数量要求】
+不要过分保守。**平均每 100 词应产出 4-8 个知识点**,并让大多数字幕段
+至少贡献 1 个。如果某一段确实什么都没有(纯数字、纯专有名词、纯客套),
+跳过它是对的;但如果你连续跳过很多段,说明你的标准定得太高了。
+
+反过来也不要凑数:同一个词条只收一次;把简单词硬凑成"搭配"是失败的输出。
+
+【如果素材本身乏善可陈】
+有些素材是刻意简化过的教学英语或念稿子的播报,几乎没有真实口语特征。
+这种情况下按实际情况少收,并在返回的 JSON 里附加一个字段
+"material_note":"一句话说明这份素材为什么产出偏少",让使用者知道
+是素材的问题,不是抽取的问题。
+
+【每个知识点输出】
 {
  "term": "词条本身(原形,如 put on 而非 put it on)",
  "type": "六类之一的英文标识",
@@ -43,6 +57,9 @@ SYSTEM = """你是英语精读教材的编者,为中国学习者从真实 vlog �
  "exam": ["考级标签,从 四级/六级/考研/雅思/托福/专四/专八 中选,不确定就给空数组"],
  "note": "用法提示或语境备注,一句话,没有就空串"
 }
+
+铁律:只选【真实出现在文本中】的表达,严禁编造原文没有的内容;
+quote 必须是原文中的原句,逐字照抄,用于回放定位。
 
 输出严格 JSON:{"cards":[...]}。只输出 JSON,不要解释。"""
 
@@ -122,15 +139,17 @@ def locate(term, segments, max_gap=4):
             break
     return best
 
-def extract_cards(llm, segments, batch=12, verbose=True):
+def extract_cards(llm, segments, batch=10, verbose=True):
     """按批处理字幕段,抽取知识点。返回卡片列表。"""
-    cards = []
+    cards, notes = [], []
     for bi in range(0, len(segments), batch):
         part = segments[bi:bi + batch]
         if verbose:
             print(f"  · 抽取知识点 第 {bi//batch + 1}/{(len(segments)-1)//batch + 1} 批")
         body = "\n".join(f'[{s["id"]}] {s["en"]}' for s in part)
         data = llm.chat_json(SYSTEM, f"字幕片段:\n\n{body}")
+        if data.get("material_note"):
+            notes.append(str(data["material_note"]))
         for c in data.get("cards", []):
             if not c.get("term"):
                 continue
@@ -141,7 +160,7 @@ def extract_cards(llm, segments, batch=12, verbose=True):
             except (TypeError, ValueError):
                 c["seg"] = part[0]["id"]
             cards.append(c)
-    return cards
+    return cards, notes
 
 
 def verify_and_enrich(cards, segments, wordlists=None):
