@@ -1,0 +1,24 @@
+# 密钥,绝不入库
+.env
+
+# LLM 结果缓存(重跑不重复付费用的,本地产物)
+.cache/
+
+# 素材库:视频和生成的数据都是本地产物,体积大且可再生
+library/*
+!library/.gitkeep
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+
+# 中间文件
+_audio.wav
+*.tmp
+
+# 系统
+.DS_Store
+Thumbs.db
