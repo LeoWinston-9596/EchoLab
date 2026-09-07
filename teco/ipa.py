@@ -17,9 +17,12 @@ def to_ipa(text: str, accent="en-us") -> str:
     if not text or not exe:
         return ""
     try:
+        # 必须显式指定 utf-8:espeak-ng 输出的是 UTF-8,而 text=True 默认用系统
+        # 编码解码。中文 Windows 的系统编码是 GBK,不指定就会把音标解成乱码。
         out = subprocess.run(
             [exe, "--ipa", "-q", "-v", accent, text],
-            capture_output=True, text=True, timeout=15,
+            capture_output=True, text=True, encoding="utf-8", errors="replace",
+            timeout=15,
         )
         ipa = out.stdout.strip().replace("\n", " ")
         ipa = _CLEAN.sub("", ipa)
