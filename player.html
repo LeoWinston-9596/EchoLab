@@ -1,0 +1,477 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>EchoLab · 看视频学英语</title>
+<style>
+:root{
+  --bg:#0f131a; --panel:#161b24; --panel2:#1c222d; --line:#2a323f;
+  --fg:#e8edf5; --dim:#94a3b8; --dim2:#64748b;
+  --accent:#5b9dff; --accent-soft:#5b9dff22;
+  --active:#ffd76a; --active-bg:#ffd76a14;
+  --t-word:#7aa2ff; --t-phrase:#4ecdc4; --t-pv:#c084fc;
+  --t-coll:#f0a86a; --t-pat:#ff8fa3; --t-dm:#7ddc8f;
+  --radius:12px;
+}
+@media (prefers-color-scheme: light){
+  :root{ --bg:#f6f7f9; --panel:#fff; --panel2:#f0f2f6; --line:#e2e6ee;
+         --fg:#1a2130; --dim:#5b6779; --dim2:#8a94a6; --active-bg:#ffd76a2e; }
+}
+*{box-sizing:border-box}
+html,body{height:100%}
+body{margin:0;background:var(--bg);color:var(--fg);
+  font:15px/1.6 -apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif;
+  -webkit-font-smoothing:antialiased}
+button{font:inherit;color:inherit;background:none;border:none;cursor:pointer}
+::-webkit-scrollbar{width:9px;height:9px}
+::-webkit-scrollbar-thumb{background:var(--line);border-radius:6px}
+
+/* ---------- 布局 ---------- */
+.app{display:grid;grid-template-columns:minmax(0,1.15fr) minmax(0,1fr);
+  gap:14px;height:100vh;padding:14px}
+@media(max-width:1000px){.app{grid-template-columns:1fr;height:auto;padding:10px}}
+.col{display:flex;flex-direction:column;gap:12px;min-height:0}
+
+/* ---------- 顶部 ---------- */
+.topbar{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.brand{font-weight:700;letter-spacing:.3px;font-size:15px;white-space:nowrap}
+.brand span{color:var(--accent)}
+select.ep{background:var(--panel);border:1px solid var(--line);color:var(--fg);
+  padding:7px 10px;border-radius:9px;max-width:100%;flex:1;min-width:140px}
+
+/* ---------- 视频 ---------- */
+.stage{background:#000;border-radius:var(--radius);overflow:hidden;position:relative;
+  border:1px solid var(--line)}
+.stage.audio-only video{height:46px;aspect-ratio:auto;background:transparent}
+.stage.audio-only{background:linear-gradient(135deg,#1b2230,#111621);
+  display:flex;flex-direction:column;align-items:center;justify-content:center;
+  padding:30px 18px 14px;gap:16px}
+.stage.audio-only .aud{color:#8fa3bf;font-size:13.5px;text-align:center;line-height:1.8}
+.stage.audio-only .aud b{display:block;color:#dbe6f5;font-size:17px;margin-bottom:3px}
+video{width:100%;display:block;aspect-ratio:16/9;background:#000}
+.meta{display:flex;gap:8px;flex-wrap:wrap;align-items:center;font-size:12.5px;color:var(--dim)}
+.chip{background:var(--panel2);border:1px solid var(--line);padding:3px 9px;border-radius:999px;white-space:nowrap}
+.stars{color:var(--active);letter-spacing:1px}
+
+/* ---------- 控制条 ---------- */
+.controls{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);
+  padding:11px 12px;display:flex;flex-direction:column;gap:10px}
+.row{display:flex;gap:7px;align-items:center;flex-wrap:wrap}
+.btn{background:var(--panel2);border:1px solid var(--line);padding:7px 12px;border-radius:9px;
+  font-size:13.5px;transition:.15s;white-space:nowrap}
+.btn:hover{border-color:var(--accent);color:var(--accent)}
+.btn.on{background:var(--accent-soft);border-color:var(--accent);color:var(--accent);font-weight:600}
+.btn.big{padding:9px 16px;font-size:15px}
+.seg-group{display:flex;background:var(--panel2);border:1px solid var(--line);
+  border-radius:9px;overflow:hidden}
+.seg-group .btn{border:none;border-radius:0;padding:7px 11px;background:none}
+.seg-group .btn.on{background:var(--accent-soft)}
+.spacer{flex:1}
+input[type=range]{accent-color:var(--accent);width:112px}
+.rate{font-variant-numeric:tabular-nums;color:var(--dim);font-size:12.5px;min-width:34px}
+
+/* ---------- 面板 ---------- */
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);
+  display:flex;flex-direction:column;min-height:0;flex:1;overflow:hidden}
+.tabs{display:flex;gap:2px;padding:8px 8px 0;border-bottom:1px solid var(--line);flex-wrap:wrap}
+.tab{padding:8px 14px;border-radius:9px 9px 0 0;font-size:14px;color:var(--dim)}
+.tab.on{color:var(--fg);background:var(--panel2);font-weight:600}
+.tab .n{font-size:11px;color:var(--dim2);margin-left:4px}
+.scroll{overflow-y:auto;padding:10px;flex:1;min-height:0}
+@media(max-width:1000px){.scroll{max-height:56vh}}
+
+/* ---------- 字幕 ---------- */
+.sub{padding:9px 12px;border-radius:10px;border:1px solid transparent;margin-bottom:3px;
+  cursor:pointer;transition:.12s;position:relative}
+.sub:hover{background:var(--panel2)}
+.sub.active{background:var(--active-bg);border-color:#ffd76a55}
+.sub .en{font-size:16.5px;line-height:1.65}
+.sub .zh{color:var(--dim);font-size:14px;margin-top:4px}
+.sub .ipa{color:var(--dim2);font-size:13px;margin-top:3px;font-family:"Doulos SIL","Charis SIL",serif}
+.sub .idx{position:absolute;left:-2px;top:11px;font-size:10.5px;color:var(--dim2);
+  width:22px;text-align:right;display:none}
+.sub .tools{display:none;gap:5px;margin-top:7px}
+.sub:hover .tools,.sub.active .tools{display:flex}
+.tool{font-size:11.5px;padding:3px 8px;border-radius:7px;background:var(--panel2);
+  border:1px solid var(--line);color:var(--dim)}
+.tool:hover{color:var(--accent);border-color:var(--accent)}
+.tool.on{color:var(--active);border-color:var(--active)}
+.w{border-radius:3px;padding:0 1px}
+.w.t-word{color:var(--t-word);border-bottom:1.5px solid var(--t-word)}
+.w.t-phrase{color:var(--t-phrase);border-bottom:1.5px solid var(--t-phrase)}
+.w.t-phrasal_verb{color:var(--t-pv);border-bottom:1.5px solid var(--t-pv)}
+.w.t-collocation{color:var(--t-coll);border-bottom:1.5px solid var(--t-coll)}
+.w.t-pattern{color:var(--t-pat);border-bottom:1.5px solid var(--t-pat)}
+.w.t-discourse_marker{color:var(--t-dm);border-bottom:1.5px solid var(--t-dm)}
+.hidden{display:none!important}
+
+/* ---------- 词卡 ---------- */
+.cardgroup{margin-bottom:16px}
+.cardgroup h3{font-size:12.5px;color:var(--dim);margin:0 0 8px;font-weight:600;
+  display:flex;align-items:center;gap:7px}
+.dot{width:8px;height:8px;border-radius:50%;display:inline-block}
+.card{background:var(--panel2);border:1px solid var(--line);border-radius:10px;
+  padding:11px 12px;margin-bottom:8px}
+.card .term{font-size:16.5px;font-weight:600;display:flex;align-items:center;
+  gap:8px;flex-wrap:wrap}
+.card .pos{font-size:11.5px;color:var(--dim2);font-weight:400}
+.card .ipa{color:var(--dim2);font-size:12.5px;margin-top:2px}
+.card .def{margin-top:6px;font-size:14px}
+.card .def .en{color:var(--dim)}
+.card .ex{margin-top:7px;padding-left:9px;border-left:2px solid var(--line);font-size:13.5px}
+.card .ex .zh{color:var(--dim)}
+.card .note{margin-top:7px;font-size:12.5px;color:var(--dim);background:var(--panel);
+  padding:6px 9px;border-radius:7px}
+.card .quote{margin-top:7px;font-size:12.5px;color:var(--dim2);cursor:pointer}
+.card .quote:hover{color:var(--accent)}
+.tags{display:flex;gap:4px;flex-wrap:wrap;margin-top:6px}
+.tag{font-size:10.5px;padding:2px 7px;border-radius:5px;background:var(--accent-soft);
+  color:var(--accent);border:1px solid #5b9dff44}
+.speak{font-size:11.5px;padding:2px 8px;border-radius:6px;border:1px solid var(--line);color:var(--dim)}
+.speak:hover{color:var(--accent);border-color:var(--accent)}
+.empty{color:var(--dim2);text-align:center;padding:40px 16px;font-size:14px;line-height:1.9}
+kbd{background:var(--panel2);border:1px solid var(--line);border-bottom-width:2px;
+  border-radius:5px;padding:1px 6px;font-size:11.5px;font-family:inherit}
+.help{font-size:12px;color:var(--dim2);padding:2px 2px 0}
+</style>
+</head>
+<body>
+<div class="app">
+  <!-- 左:视频与控制 -->
+  <div class="col">
+    <div class="topbar">
+      <div class="brand">EchoLab<span>·</span>看视频学英语</div>
+      <select class="ep" id="epSel"></select>
+    </div>
+    <div class="stage" id="stage"><div class="aud hidden" id="audNote"></div>
+      <video id="v" playsinline controls preload="metadata"></video></div>
+    <div class="meta" id="meta"></div>
+
+    <div class="controls">
+      <div class="row">
+        <button class="btn big" id="bPlay">▶ 播放</button>
+        <button class="btn" id="bPrev">↑ 上一句</button>
+        <button class="btn" id="bNext">下一句 ↓</button>
+        <button class="btn" id="bReplay">↺ 重听本句</button>
+      </div>
+      <div class="row">
+        <button class="btn" id="bLoop">🔁 单句循环</button>
+        <button class="btn" id="bPause">⏸ 单句暂停</button>
+        <div class="spacer"></div>
+        <span class="rate" id="rateTxt">1.0x</span>
+        <input type="range" id="rate" min="0.3" max="2" step="0.1" value="1">
+      </div>
+      <div class="row">
+        <div class="seg-group" id="modes">
+          <button class="btn on" data-m="both">双语</button>
+          <button class="btn" data-m="en">英</button>
+          <button class="btn" data-m="zh">中</button>
+          <button class="btn" data-m="ipa">IPA</button>
+        </div>
+        <button class="btn" id="bMark">🎨 标注知识点</button>
+        <button class="btn" id="bFollow">🎯 自动跟随</button>
+      </div>
+      <div class="help">
+        <kbd>空格</kbd> 播放/暂停 · <kbd>←</kbd><kbd>→</kbd> 上下句 · <kbd>R</kbd> 重听 · <kbd>L</kbd> 循环 · <kbd>P</kbd> 单句暂停
+      </div>
+    </div>
+  </div>
+
+  <!-- 右:字幕与词卡 -->
+  <div class="col">
+    <div class="panel">
+      <div class="tabs">
+        <button class="tab on" data-t="sub">字幕<span class="n" id="nSub"></span></button>
+        <button class="tab" data-t="card">词卡<span class="n" id="nCard"></span></button>
+        <button class="tab" data-t="fav">收藏<span class="n" id="nFav"></span></button>
+      </div>
+      <div class="scroll" id="subBox"></div>
+      <div class="scroll hidden" id="cardBox"></div>
+      <div class="scroll hidden" id="favBox"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+"use strict";
+const $ = s => document.querySelector(s);
+const v = $("#v");
+let EP=null, SEGS=[], CARDS=[], cur=-1;
+const S = {                       // 学习模式开关,存本地,下次打开还在
+  mode:"both", loop:false, pauseEach:false, mark:true, follow:true,
+};
+const store = {
+  get(k,d){ try{ const x=localStorage.getItem(k); return x===null?d:JSON.parse(x);}catch(e){return d;} },
+  set(k,val){ try{ localStorage.setItem(k, JSON.stringify(val)); }catch(e){} }
+};
+Object.assign(S, store.get("echolab.settings", {}));
+let FAV = store.get("echolab.fav", {});     // {epId: {segIds:[], terms:[]}}
+
+/* ---------- 词干还原:让 "took it off" 能对上 "take off" ---------- */
+const IRREG={was:"be",were:"be",is:"be",are:"be",am:"be",been:"be",being:"be",took:"take",
+ taken:"take",found:"find",went:"go",gone:"go",got:"get",gotten:"get",had:"have",has:"have",
+ having:"have",did:"do",done:"do",said:"say",made:"make",came:"come",saw:"see",seen:"see",
+ knew:"know",known:"know",thought:"think",felt:"feel",kept:"keep",left:"leave",meant:"mean",
+ told:"tell",gave:"give",given:"give",brought:"bring",bought:"buy",caught:"catch",held:"hold",
+ ran:"run",sat:"sit",spent:"spend",stood:"stand",wore:"wear",worn:"wear",wrote:"write",written:"write"};
+const PLACE=new Set(["sb","sth","someone","something","ones","oneself","your","yours","his","her","their","my","its"]);
+function stem(w){
+  w=w.toLowerCase().replace(/[^a-z0-9]/g,"");
+  if(IRREG[w])return IRREG[w];
+  for(const[s,r]of[["ies","y"],["ing",""],["ed",""],["es",""],["s",""]])
+    if(w.endsWith(s)&&w.length>s.length+2)return w.slice(0,-s.length)+r;
+  return w;
+}
+const toks = t => t.split(/\s+/).map(stem).filter(Boolean);
+/** 在一段的词序列里找词条的跨度,允许中间插词(短语动词会被拆开) */
+function findSpan(term, segWords, maxGap=4){
+  const need = toks(term).filter(t=>!PLACE.has(t));
+  if(!need.length) return null;
+  const ws = segWords.map(x=>stem(x.w));
+  for(let i=0;i<ws.length;i++){
+    if(ws[i]!==need[0]) continue;
+    let pos=i, ok=true;
+    for(let k=1;k<need.length;k++){
+      let f=-1;
+      for(let j=pos+1;j<Math.min(pos+2+maxGap,ws.length);j++) if(ws[j]===need[k]){f=j;break;}
+      if(f<0){ok=false;break;} pos=f;
+    }
+    if(ok) return [i,pos];
+  }
+  return null;
+}
+
+/* ---------- 加载 ---------- */
+async function boot(){
+  let idx;
+  try{ idx = await (await fetch("library/index.json?"+Date.now())).json(); }
+  catch(e){ return showEmpty("读不到素材库。请用 <code>python3 serve.py</code> 启动,不要直接双击打开本文件。"); }
+  const eps = idx.episodes||[];
+  if(!eps.length) return showEmpty("素材库还是空的。<br>先运行 <code>python3 demo.py</code> 看演示,<br>或用 <code>python3 process.py 你的视频.mp4</code> 添加内容。");
+  const sel=$("#epSel");
+  sel.innerHTML = eps.map(e=>`<option value="${e.id}">${e.title}${e.demo?" (演示)":""}</option>`).join("");
+  sel.onchange = ()=>load(sel.value);
+  await load(store.get("echolab.last", eps[0].id) in Object.fromEntries(eps.map(e=>[e.id,1]))
+             ? store.get("echolab.last", eps[0].id) : eps[0].id);
+  sel.value = EP.id;
+}
+function showEmpty(html){ $("#subBox").innerHTML=`<div class="empty">${html}</div>`; }
+
+async function load(id){
+  EP = await (await fetch(`library/${id}/data.json?`+Date.now())).json();
+  SEGS = EP.segments||[]; CARDS = EP.cards||[]; cur=-1;
+  store.set("echolab.last", id);
+  v.src = EP.media.startsWith("file:") ? EP.media : `library/${id}/${EP.media}`;
+  // 纯音频素材:换成一个像样的音频卡片,而不是一块黑
+  const audioOnly = /\.(wav|mp3|m4a|aac|ogg|flac)(\?|$)/i.test(EP.media);
+  $("#stage").classList.toggle("audio-only", audioOnly);
+  $("#audNote").classList.toggle("hidden", !audioOnly);
+  if(audioOnly) $("#audNote").innerHTML = `<b>🎧 ${esc(EP.title)}</b>这一期是纯音频素材<br>右侧字幕与词卡功能完全一样`;
+  v.playbackRate = parseFloat($("#rate").value);
+  $("#meta").innerHTML = [
+    `<span class="stars">${"★".repeat(EP.difficulty||0)}${"☆".repeat(5-(EP.difficulty||0))}</span>`,
+    ...(EP.topics||[]).map(t=>`<span class="chip">${t}</span>`),
+    `<span class="chip">语速 ${EP.wpm} 词/分</span>`,
+    `<span class="chip">建议 ${EP.suggested_minutes} 分钟</span>`,
+    `<span class="chip">${fmt(EP.duration)}</span>`,
+    EP.summary?`<span>${EP.summary}</span>`:""
+  ].join("");
+  renderSubs(); renderCards(); renderFav(); syncButtons();
+}
+const fmt = s => `${Math.floor(s/60)}:${String(Math.round(s%60)).padStart(2,"0")}`;
+
+/* ---------- 字幕渲染 ---------- */
+function markup(seg){
+  // 找出本段命中的知识点,给对应的词上色
+  const spans = new Array(seg.words.length).fill(null);
+  if(S.mark) for(const c of CARDS){
+    if(c.seg!==seg.id) continue;
+    const sp = findSpan(c.term, seg.words);
+    if(sp) for(let i=sp[0];i<=sp[1];i++) if(!spans[i]) spans[i]=c.type;
+  }
+  return seg.words.map((w,i)=>
+    spans[i] ? `<span class="w t-${spans[i]}">${esc(w.w)}</span>` : esc(w.w)
+  ).join(" ");
+}
+const esc = s => s.replace(/[&<>]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;"}[c]));
+
+function renderSubs(){
+  const fav = (FAV[EP.id]||{}).segIds||[];
+  $("#subBox").innerHTML = SEGS.map(s=>`
+    <div class="sub" data-id="${s.id}">
+      <div class="en ${S.mode==="zh"||S.mode==="ipa"?"hidden":""}">${markup(s)}</div>
+      <div class="zh ${S.mode==="en"||S.mode==="ipa"?"hidden":""}">${esc(s.zh||"")}</div>
+      <div class="ipa ${S.mode==="ipa"?"":"hidden"}">${esc(s.ipa||"")}</div>
+      <div class="tools">
+        <button class="tool" data-a="play">▶ 播这句</button>
+        <button class="tool" data-a="loop">🔁 循环</button>
+        <button class="tool ${fav.includes(s.id)?"on":""}" data-a="fav">${fav.includes(s.id)?"★ 已收藏":"☆ 收藏"}</button>
+        <button class="tool" data-a="copy">复制</button>
+      </div>
+    </div>`).join("");
+  $("#nSub").textContent = SEGS.length;
+}
+
+$("#subBox").addEventListener("click", e=>{
+  const box = e.target.closest(".sub"); if(!box) return;
+  const id = +box.dataset.id, seg = SEGS[id];
+  const a = e.target.dataset.a;
+  if(a==="loop"){ S.loop=true; saveS(); syncButtons(); jump(id); }
+  else if(a==="fav"){ toggleFav(id); }
+  else if(a==="copy"){ navigator.clipboard?.writeText(`${seg.en}\n${seg.zh}`); e.target.textContent="已复制"; setTimeout(()=>e.target.textContent="复制",900); }
+  else jump(id);
+});
+
+function jump(id){
+  const s=SEGS[id]; if(!s) return;
+  cur=id; v.currentTime=s.start+0.01; v.play(); highlight(true);
+}
+
+/* ---------- 播放同步 ---------- */
+function segAt(t){
+  for(let i=0;i<SEGS.length;i++) if(t>=SEGS[i].start-0.05 && t<SEGS[i].end) return i;
+  return -1;
+}
+v.addEventListener("timeupdate", ()=>{
+  const t=v.currentTime;
+  if(cur>=0){
+    const s=SEGS[cur];
+    if(S.loop && t>=s.end){ v.currentTime=s.start+0.01; return; }
+    if(S.pauseEach && t>=s.end){ v.pause(); v.currentTime=s.end-0.02;
+      const nx=cur+1; if(nx<SEGS.length){ cur=nx; highlight(false); } return; }
+  }
+  const i=segAt(t);
+  if(i>=0 && i!==cur){ cur=i; highlight(true); }
+});
+function highlight(scroll){
+  document.querySelectorAll(".sub").forEach(el=>{
+    const on = +el.dataset.id===cur;
+    el.classList.toggle("active", on);
+    if(on && scroll && S.follow) el.scrollIntoView({block:"center",behavior:"smooth"});
+  });
+}
+v.addEventListener("play", ()=>$("#bPlay").textContent="⏸ 暂停");
+v.addEventListener("pause",()=>$("#bPlay").textContent="▶ 播放");
+
+/* ---------- 控件 ---------- */
+const saveS = ()=>store.set("echolab.settings", S);
+$("#bPlay").onclick = ()=> v.paused? v.play() : v.pause();
+$("#bPrev").onclick = ()=> jump(Math.max(0,(cur<0?0:cur)-1));
+$("#bNext").onclick = ()=> jump(Math.min(SEGS.length-1,(cur<0?-1:cur)+1));
+$("#bReplay").onclick= ()=> jump(cur<0?0:cur);
+$("#bLoop").onclick  = ()=>{ S.loop=!S.loop; if(S.loop)S.pauseEach=false; saveS(); syncButtons(); };
+$("#bPause").onclick = ()=>{ S.pauseEach=!S.pauseEach; if(S.pauseEach)S.loop=false; saveS(); syncButtons(); };
+$("#bMark").onclick  = ()=>{ S.mark=!S.mark; saveS(); renderSubs(); highlight(false); syncButtons(); };
+$("#bFollow").onclick= ()=>{ S.follow=!S.follow; saveS(); syncButtons(); };
+$("#rate").oninput = e=>{ v.playbackRate=parseFloat(e.target.value); $("#rateTxt").textContent=(+e.target.value).toFixed(1)+"x"; };
+$("#modes").onclick = e=>{ const m=e.target.dataset.m; if(!m)return; S.mode=m; saveS(); renderSubs(); highlight(false); syncButtons(); };
+document.querySelectorAll(".tab").forEach(t=>t.onclick=()=>{
+  document.querySelectorAll(".tab").forEach(x=>x.classList.toggle("on",x===t));
+  const map={sub:"#subBox",card:"#cardBox",fav:"#favBox"};
+  for(const[k,sel]of Object.entries(map)) $(sel).classList.toggle("hidden", k!==t.dataset.t);
+});
+function syncButtons(){
+  $("#bLoop").classList.toggle("on",S.loop);
+  $("#bPause").classList.toggle("on",S.pauseEach);
+  $("#bMark").classList.toggle("on",S.mark);
+  $("#bFollow").classList.toggle("on",S.follow);
+  document.querySelectorAll("#modes .btn").forEach(b=>b.classList.toggle("on",b.dataset.m===S.mode));
+  $("#rateTxt").textContent = v.playbackRate.toFixed(1)+"x";
+}
+document.addEventListener("keydown", e=>{
+  if(/input|select|textarea/i.test(e.target.tagName)) return;
+  const k=e.key.toLowerCase();
+  if(k===" "){e.preventDefault(); v.paused?v.play():v.pause();}
+  else if(k==="arrowleft"){e.preventDefault(); $("#bPrev").click();}
+  else if(k==="arrowright"){e.preventDefault(); $("#bNext").click();}
+  else if(k==="r"){$("#bReplay").click();}
+  else if(k==="l"){$("#bLoop").click();}
+  else if(k==="p"){$("#bPause").click();}
+});
+
+/* ---------- 词卡 ---------- */
+const TYPE_ORDER=["word","phrase","phrasal_verb","collocation","pattern","discourse_marker"];
+const TYPE_ZH={word:"单词",phrase:"短语",phrasal_verb:"短语动词",collocation:"搭配",pattern:"口语句式",discourse_marker:"话语标记"};
+const TYPE_VAR={word:"--t-word",phrase:"--t-phrase",phrasal_verb:"--t-pv",collocation:"--t-coll",pattern:"--t-pat",discourse_marker:"--t-dm"};
+
+function cardHTML(c){
+  const favT=((FAV[EP.id]||{}).terms)||[];
+  return `<div class="card" data-term="${esc(c.term)}">
+    <div class="term">${esc(c.term)}
+      ${c.pos?`<span class="pos">${esc(c.pos)}</span>`:""}
+      <button class="speak" data-sp="US">🔊 美</button>
+      <button class="speak" data-sp="GB">🔊 英</button>
+      <button class="speak" data-fav="1">${favT.includes(c.term)?"★":"☆"}</button>
+    </div>
+    ${c.ipa?`<div class="ipa">美 /${esc(c.ipa.us||"")}/ &nbsp; 英 /${esc(c.ipa.uk||"")}/</div>`:""}
+    <div class="def"><b>${esc(c.def_zh||"")}</b>${c.def_en?`<div class="en">${esc(c.def_en)}</div>`:""}</div>
+    ${c.ex_en?`<div class="ex">${esc(c.ex_en)}<div class="zh">${esc(c.ex_zh||"")}</div></div>`:""}
+    ${c.note?`<div class="note">${esc(c.note)}</div>`:""}
+    ${(c.exam||[]).length?`<div class="tags">${c.exam.map(t=>`<span class="tag">${esc(t)}</span>`).join("")}</div>`:""}
+    ${c.quote?`<div class="quote" data-seg="${c.seg}">▶ 原句:${esc(c.quote)}</div>`:""}
+  </div>`;
+}
+function renderCards(){
+  const box=$("#cardBox");
+  if(!CARDS.length){ box.innerHTML=`<div class="empty">这一期没有知识点卡片。<br>处理时加了 --no-cards,或抽取结果为空。</div>`; $("#nCard").textContent=0; return; }
+  box.innerHTML = TYPE_ORDER.filter(t=>CARDS.some(c=>c.type===t)).map(t=>`
+    <div class="cardgroup">
+      <h3><span class="dot" style="background:var(${TYPE_VAR[t]})"></span>${TYPE_ZH[t]}
+        <span class="n">${CARDS.filter(c=>c.type===t).length}</span></h3>
+      ${CARDS.filter(c=>c.type===t).map(cardHTML).join("")}
+    </div>`).join("");
+  $("#nCard").textContent = CARDS.length;
+}
+function speak(text, accent){
+  try{
+    const u=new SpeechSynthesisUtterance(text);
+    u.lang = accent==="GB"?"en-GB":"en-US"; u.rate=.85;
+    const vs=speechSynthesis.getVoices().filter(x=>x.lang.replace("_","-").startsWith(u.lang));
+    if(vs.length)u.voice=vs[0];
+    speechSynthesis.cancel(); speechSynthesis.speak(u);
+  }catch(e){}
+}
+document.addEventListener("click", e=>{
+  const card=e.target.closest(".card"); if(!card)return;
+  if(e.target.dataset.sp) speak(card.dataset.term, e.target.dataset.sp);
+  else if(e.target.dataset.fav) toggleTerm(card.dataset.term);
+  else if(e.target.dataset.seg!==undefined){
+    document.querySelector('.tab[data-t="sub"]').click(); jump(+e.target.dataset.seg);
+  }
+});
+
+/* ---------- 收藏 ---------- */
+function bucket(){ FAV[EP.id]=FAV[EP.id]||{segIds:[],terms:[]}; return FAV[EP.id]; }
+function toggleFav(id){
+  const b=bucket(); const i=b.segIds.indexOf(id);
+  i<0? b.segIds.push(id) : b.segIds.splice(i,1);
+  store.set("echolab.fav",FAV); renderSubs(); highlight(false); renderFav();
+}
+function toggleTerm(t){
+  const b=bucket(); const i=b.terms.indexOf(t);
+  i<0? b.terms.push(t) : b.terms.splice(i,1);
+  store.set("echolab.fav",FAV); renderCards(); renderFav();
+}
+function renderFav(){
+  const b=FAV[EP.id]||{segIds:[],terms:[]};
+  const segs=b.segIds.map(id=>SEGS[id]).filter(Boolean);
+  const cards=CARDS.filter(c=>b.terms.includes(c.term));
+  $("#nFav").textContent = segs.length+cards.length;
+  $("#favBox").innerHTML = (segs.length||cards.length) ? `
+    ${segs.length?`<div class="cardgroup"><h3>收藏的句子 <span class="n">${segs.length}</span></h3>
+      ${segs.map(s=>`<div class="sub" data-id="${s.id}"><div class="en">${esc(s.en)}</div>
+        <div class="zh">${esc(s.zh||"")}</div></div>`).join("")}</div>`:""}
+    ${cards.length?`<div class="cardgroup"><h3>收藏的词条 <span class="n">${cards.length}</span></h3>
+      ${cards.map(cardHTML).join("")}</div>`:""}`
+    : `<div class="empty">还没有收藏。<br>在字幕上点「☆ 收藏」,或在词卡上点 ☆。</div>`;
+  $("#favBox").querySelectorAll(".sub").forEach(el=>el.onclick=()=>{
+    document.querySelector('.tab[data-t="sub"]').click(); jump(+el.dataset.id);
+  });
+}
+
+boot();
+if(window.speechSynthesis) speechSynthesis.getVoices();
+</script>
+</body>
+</html>
