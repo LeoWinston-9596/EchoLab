@@ -158,23 +158,19 @@ kbd{background:var(--panel2);border:1px solid var(--line);border-bottom-width:2p
 /* ================= 手机 / 窄屏 ================= */
 @media(max-width:900px){
   .app{display:flex;flex-direction:column;grid-template-columns:none;
-    height:100dvh;height:100vh;gap:8px;padding:0}
-  /* 视频与控制固定在顶部,只有下面的列表滚动 */
-  .col.top{gap:7px;flex-shrink:0;padding:max(6px,env(safe-area-inset-top)) 8px 0}
-  .col.bot{flex:1;min-height:0;padding:0 8px calc(6px + env(safe-area-inset-bottom))}
+    height:100dvh;height:100vh;gap:7px;
+    padding:max(6px,env(safe-area-inset-top)) 8px calc(6px + env(safe-area-inset-bottom))}
   .stage{border-radius:10px}
   .topbar{gap:6px}
   .brand{font-size:13px}
   .epttl{display:none}
   .meta{display:none}                 /* 手机上元信息让位给正文 */
-  .controls{padding:7px;gap:7px;border-radius:10px}
   .help{display:none}                  /* 键盘提示在手机上纯占地方 */
   .btn{padding:8px 10px;font-size:13px}
   .desk-only{display:none!important}
-  .scroll{padding:8px 6px 40vh}        /* 底部留白,最后几句也能滚到舒服的位置 */
   .only-m{display:inline-flex}
   /* 主控只留「上一句 / 播放 / 下一句」,其余收进 ···,把版面让给字幕 */
-  .controls{padding:6px;gap:0}
+  .controls{padding:6px;gap:0;border-radius:10px}
   .row.main{gap:6px}
   #bMore{min-width:46px;font-size:19px;line-height:1;letter-spacing:1px;position:relative}
   #bMore.dirty::after{content:"";position:absolute;top:7px;right:8px;width:7px;height:7px;
@@ -190,23 +186,46 @@ kbd{background:var(--panel2);border:1px solid var(--line);border-bottom-width:2p
     font-size:13px;color:var(--dim);padding-bottom:2px}
   .extra .row{gap:7px}
   .extra .btn.sm,.extra .seg .btn{min-height:42px;font-size:14px;padding:9px 14px}
-  .extra .seg{flex:1}
-  .extra .seg .btn{flex:1}
+  /* 倍速、显示模式各占整整一行。两组挤在同一行时,按钮的最小内容宽度加起来
+     超过半行,.seg 的 overflow:hidden 就把 1.0 往后的全裁掉了——手机上
+     打开 ··· 只看得见 0.6 和 0.8 */
+  .extra .seg{flex:1 1 100%}
+  .extra .seg .btn{flex:1;padding:9px 4px}
   .scrim{display:block;position:fixed;inset:0;z-index:39;background:rgba(0,0,0,.42);
     opacity:0;pointer-events:none;transition:opacity .2s}
   .scrim.open{opacity:1;pointer-events:auto}
   .sub .en{font-size:17px}
   .sub .zh{font-size:15px}
-  .tab{flex:1;text-align:center;padding:10px 6px}
-  /* 词卡上那排按钮在手机上过于抢眼,缩到约一半 */
+  /* 「字幕-单词-语块-收藏」这一排在手机上太抢眼,高度缩到桌面的一半 */
+  .tab{flex:1;text-align:center;padding:4px 6px;min-height:26px;font-size:12.5px}
+  .tab .n{font-size:10px;margin-left:3px}
+  /* 卡片上那几个小按钮也跟着收一收 */
   .card .speak{font-size:10.5px;padding:2px 7px;min-height:24px;border-radius:6px}
   .card .term{font-size:16px;gap:5px}
   .card .quote{padding:4px 0;min-height:26px}
 }
+
+/* 竖屏:视频 → 滚动字幕 → 标签 → 播放控制。
+   字幕要紧贴视频,中间不能再隔着一排播放键 */
+@media(max-width:900px) and (orientation:portrait){
+  /* 这两个列容器在竖屏下不能形成盒子。字幕在下栏、播放控制在上栏,
+     只要盒子还在,order 就只能在各自内部生效,跨栏排不动 */
+  .col.top,.col.bot{display:contents}
+  .topbar{order:1;flex-shrink:0}
+  .stage{order:2;flex-shrink:0}
+  .panel{order:3;flex:1;min-height:0}
+  .controls{order:4;flex-shrink:0}
+  /* 标签栏沉到字幕下方、紧挨播放控制,于是分隔线也要从下边挪到上边 */
+  .panel .scroll{order:1}
+  .panel .tabs{order:2;border-bottom:none;border-top:1px solid var(--line);padding:5px 7px}
+  .tab{border-radius:8px}
+  .scroll{padding:8px 6px 25vh}   /* 底部留白,最后几句也能滚到舒服的位置 */
+}
 @media(max-width:900px) and (orientation:landscape){
-  .app{flex-direction:row;padding:0 6px}
-  .col.top{width:50%;padding-top:6px}
-  .col.bot{flex:1;padding:6px 0}
+  .app{flex-direction:row;padding:0 6px;gap:8px}
+  .col.top{width:50%;padding-top:6px;gap:7px}
+  .col.bot{flex:1;padding:6px 0;min-height:0}
+  .scroll{padding:8px 6px 40vh}
 }
 </style>
 </head>
@@ -275,16 +294,18 @@ kbd{background:var(--panel2);border:1px solid var(--line);border-bottom-width:2p
     <div class="scrim" id="scrim"></div>
   </div>
 
-  <!-- 下:字幕 / 词卡 / 收藏(只有这里滚动) -->
+  <!-- 下:字幕 / 单词 / 语块 / 收藏(只有这里滚动) -->
   <div class="col bot">
     <div class="panel">
       <div class="tabs">
         <button class="tab on" data-t="sub">字幕<span class="n" id="nSub"></span></button>
-        <button class="tab" data-t="card">词卡<span class="n" id="nCard"></span></button>
+        <button class="tab" data-t="word" title="单个的词,一个个记">单词<span class="n" id="nWord"></span></button>
+        <button class="tab" data-t="chunk" title="lexical chunks:短语、短语动词、搭配、口语句式、话语标记——整块记住,不要拆开背">语块<span class="n" id="nChunk"></span></button>
         <button class="tab" data-t="fav">收藏<span class="n" id="nFav"></span></button>
       </div>
       <div class="scroll" id="subBox"></div>
-      <div class="scroll hidden" id="cardBox"></div>
+      <div class="scroll hidden" id="wordBox"></div>
+      <div class="scroll hidden" id="chunkBox"></div>
       <div class="scroll hidden" id="favBox"></div>
     </div>
   </div>
@@ -320,8 +341,10 @@ const MP={
   get rate(){return this.kind==="yt"?((YT_PLAYER&&YT_PLAYER.getPlaybackRate)?YT_PLAYER.getPlaybackRate():1):v.playbackRate},
   setRate(r){
     if(this.kind==="yt"){
-      const av=(YT_PLAYER&&YT_PLAYER.getAvailablePlaybackRates)?YT_PLAYER.getAvailablePlaybackRates()
-        :[0.25,0.5,0.75,1,1.25,1.5,1.75,2];
+      // 刚 loadVideoById 完、播放器尚未就绪时,这个方法【存在但返回 undefined】,
+      // 所以只判断方法在不在不够,得确认真拿到了非空数组
+      let av=(YT_PLAYER&&YT_PLAYER.getAvailablePlaybackRates)?YT_PLAYER.getAvailablePlaybackRates():null;
+      if(!Array.isArray(av)||!av.length) av=[0.25,0.5,0.75,1,1.25,1.5,1.75,2];
       const near=av.reduce((a,b)=>Math.abs(b-r)<Math.abs(a-r)?b:a,av[0]);
       YT_PLAYER&&YT_PLAYER.setPlaybackRate(near); return near;
     }
@@ -329,6 +352,8 @@ const MP={
   }
 };
 function loadYT(id){
+  // 上一期若是本地音视频,只隐藏 <video> 它还在响,必须停掉
+  try{v.pause()}catch(e){}
   MP.kind="yt"; v.classList.add("hidden"); $("#ytbox").classList.remove("hidden");
   const make=()=>{
     if(YT_PLAYER&&YT_PLAYER.loadVideoById){YT_PLAYER.loadVideoById(id);MP.setRate(S.rate);return;}
@@ -345,6 +370,7 @@ function loadYT(id){
 }
 window.onYouTubeIframeAPIReady=()=>{if(ytPending){ytPending();ytPending=null}};
 function useLocal(url){
+  try{YT_PLAYER&&YT_PLAYER.pauseVideo&&YT_PLAYER.pauseVideo()}catch(e){}
   MP.kind="html5"; $("#ytbox").classList.add("hidden"); v.classList.remove("hidden"); v.src=url;
 }
 
@@ -420,8 +446,10 @@ async function load(id){
     return;
   }
   SEGS=EP.segments||[]; CARDS=EP.cards||[]; cur=-1;
-  // 换了素材必须把列表滚回顶部,否则会停在上一期的位置,看起来像没更新
-  $("#subBox").scrollTop=0; $("#cardBox").scrollTop=0; $("#favBox").scrollTop=0;
+  // 换了素材必须把列表滚回顶部,否则会停在上一期的位置,看起来像没更新。
+  // 按类名一次滚完,免得以后加了标签页忘了加在这里——少一个就抛 null,
+  // 而这个函数后面还要渲染字幕,一抛就整期不更新
+  document.querySelectorAll(".panel .scroll").forEach(el=>el.scrollTop=0);
   userScrolledAt=0;
   store.set("echolab.last",id);
   history.replaceState(null,"",`?ep=${encodeURIComponent(id)}`);
@@ -429,13 +457,10 @@ async function load(id){
   document.title=`${EP.title||id} · EchoLab`;
 
   const ytm=/^youtube:([A-Za-z0-9_-]{11})$/.exec(EP.media||"");
-  if(ytm){ loadYT(ytm[1]); }
-  else { useLocal(EP.media.startsWith("file:")?EP.media:`library/${id}/${EP.media}`); MP.setRate(S.rate); }
-
   const audioOnly=!ytm&&/\.(wav|mp3|m4a|aac|ogg|flac)(\?|$)/i.test(EP.media||"");
   $("#stage").classList.toggle("audio-only",audioOnly);
   $("#audNote").classList.toggle("hidden",!audioOnly);
-  if(audioOnly)$("#audNote").innerHTML=`<b>🎧 ${esc(EP.title)}</b>这一期是纯音频素材<br>右侧字幕与词卡功能完全一样`;
+  if(audioOnly)$("#audNote").innerHTML=`<b>🎧 ${esc(EP.title)}</b>这一期是纯音频素材<br>右侧字幕、单词、语块功能完全一样`;
 
   $("#meta").innerHTML=[
     `<span class="stars">${"★".repeat(EP.difficulty||0)}${"☆".repeat(5-(EP.difficulty||0))}</span>`,
@@ -451,8 +476,20 @@ async function load(id){
   $("#bPrevEp").disabled=i<=0; $("#bNextEp").disabled=i>=EPS.length-1;
   $("#bPrevEp").style.opacity=i<=0?.35:1; $("#bNextEp").style.opacity=i>=EPS.length-1?.35:1;
 
-  renderSubs(); renderCards(); renderFav(); syncButtons(); offerResume();
+  // 先把内容渲染出来,再碰播放器。反过来的话,播放器初始化一抛异常就会中断
+  // 整个 load(),SEGS 已经换成新一期、屏幕上却还挂着上一期的字幕——
+  // 看起来就像「切了素材字幕不更新」,而真正的错误在控制台里没人看见
+  renderSubs(); renderCards(); renderFav(); syncButtons();
   document.querySelector('.tab[data-t="sub"]').click();
+
+  try{
+    if(ytm){ loadYT(ytm[1]); }
+    else { useLocal(EP.media.startsWith("file:")?EP.media:`library/${id}/${EP.media}`); MP.setRate(S.rate); }
+  }catch(err){
+    console.error("播放器初始化失败,字幕仍可正常阅读:",err);
+  }
+
+  offerResume();
 }
 
 /* ---------- 上次听到哪 ---------- */
@@ -600,7 +637,7 @@ function syncButtons(){
 }
 document.querySelectorAll(".tab").forEach(t=>t.onclick=()=>{
   document.querySelectorAll(".tab").forEach(x=>x.classList.toggle("on",x===t));
-  const map={sub:"#subBox",card:"#cardBox",fav:"#favBox"};
+  const map={sub:"#subBox",word:"#wordBox",chunk:"#chunkBox",fav:"#favBox"};
   for(const[k,sel]of Object.entries(map)) $(sel).classList.toggle("hidden",k!==t.dataset.t);
 });
 document.addEventListener("keydown",e=>{
@@ -617,8 +654,11 @@ document.addEventListener("keydown",e=>{
 });
 window.addEventListener("beforeunload",saveProg);
 
-/* ---------- 词卡 ---------- */
-const T_ORDER=["word","phrase","phrasal_verb","collocation","pattern","discourse_marker"];
+/* ---------- 词卡:单词 与 语块 ---------- */
+// 单词是一个个记的,语块(lexical chunks)是整块内化的——两种练法,所以分成
+// 两个标签页。混在一张列表里也翻不动:实测一期 133 张卡里 114 张是语块,
+// 剩下 19 个单词全被埋在下面
+const CHUNK_ORDER=["phrase","phrasal_verb","collocation","pattern","discourse_marker"];
 const T_ZH={word:"单词",phrase:"短语",phrasal_verb:"短语动词",collocation:"搭配",pattern:"口语句式",discourse_marker:"话语标记"};
 const T_VAR={word:"--t-word",phrase:"--t-phrase",phrasal_verb:"--t-pv",collocation:"--t-coll",pattern:"--t-pat",discourse_marker:"--t-dm"};
 function cardHTML(c){
@@ -638,16 +678,26 @@ function cardHTML(c){
     ${c.quote?`<div class="quote" data-seg="${c.seg}">▶ 原句:${esc(c.quote)}</div>`:""}
   </div>`;
 }
+function groupHTML(t,list){
+  return `<div class="cardgroup">
+    <h3><span class="dot" style="background:var(${T_VAR[t]})"></span>${T_ZH[t]}
+      <span class="n">${list.length}</span></h3>
+    ${list.map(cardHTML).join("")}
+  </div>`;
+}
 function renderCards(){
-  const box=$("#cardBox");
-  if(!CARDS.length){box.innerHTML=`<div class="empty">这一期没有知识点卡片。</div>`;$("#nCard").textContent=0;return;}
-  box.innerHTML=T_ORDER.filter(t=>CARDS.some(c=>c.type===t)).map(t=>`
-    <div class="cardgroup">
-      <h3><span class="dot" style="background:var(${T_VAR[t]})"></span>${T_ZH[t]}
-        <span class="n">${CARDS.filter(c=>c.type===t).length}</span></h3>
-      ${CARDS.filter(c=>c.type===t).map(cardHTML).join("")}
-    </div>`).join("");
-  $("#nCard").textContent=CARDS.length;
+  const words=CARDS.filter(c=>c.type==="word");
+  const chunks=CARDS.filter(c=>c.type!=="word");
+  $("#nWord").textContent=words.length;
+  $("#nChunk").textContent=chunks.length;
+  // 单词只有一类,不必再套分组标题——标签上的「单词 19」已经说明了
+  $("#wordBox").innerHTML=words.length?words.map(cardHTML).join("")
+    :`<div class="empty">这一期没有单词卡片。<br>去「语块」看看,
+       口语素材的价值多半在那边。</div>`;
+  $("#chunkBox").innerHTML=chunks.length
+    ?CHUNK_ORDER.map(t=>[t,chunks.filter(c=>c.type===t)])
+       .filter(([,list])=>list.length).map(([t,list])=>groupHTML(t,list)).join("")
+    :`<div class="empty">这一期没有语块卡片。</div>`;
 }
 function speak(text,accent){
   try{
@@ -690,7 +740,7 @@ function renderFav(){
         <div class="zh">${esc(s.zh||"")}</div></div>`).join("")}</div>`:""}
     ${cards.length?`<div class="cardgroup"><h3>收藏的词条 <span class="n">${cards.length}</span></h3>
       ${cards.map(cardHTML).join("")}</div>`:""}`
-    :`<div class="empty">还没有收藏。<br>点字幕里的「☆ 收藏」,或词卡上的 ☆。</div>`;
+    :`<div class="empty">还没有收藏。<br>点字幕里的「☆ 收藏」,或单词/语块卡片上的 ☆。</div>`;
   $("#favBox").querySelectorAll(".sub").forEach(el=>el.onclick=()=>{
     document.querySelector('.tab[data-t="sub"]').click();jump(+el.dataset.id);
   });
