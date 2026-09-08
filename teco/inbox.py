@@ -36,18 +36,30 @@ def _save(items):
 
 
 def add(url, title=""):
-    """入队。同一个网址已在队列里就不重复添加。"""
-    from .platforms import describe
+    """入队。
+
+    判重按「是哪个视频」而不是按链接字符串:同一期在 YouTube 上可能是
+    youtu.be 短链、/shorts/、或带 &t=100s 的分享链接,字符串各不相同。
+    已经在库里的更要当场拦下——否则要等到 worker 跑起来才发现白花了钱。
+    """
+    from .platforms import describe, source_key
+    from . import library
+    key = source_key(url)
     with _lock:
         items = _load()
         for it in items:
-            if it["url"] == url and it["status"] in ("待处理", "处理中", "已完成"):
+            if (it.get("key") or source_key(it.get("url", ""))) == key \
+               and it["status"] in ("待处理", "处理中", "已完成"):
                 return {"ok": True, "duplicate": True,
                         "message": f"已经在队列里了({it['status']})"}
+        done = library.find_by_source(key)
+        if done:
+            return {"ok": True, "duplicate": True,
+                    "message": f"这个视频已经做过了,直接在播放器里看「{done}」"}
         kind, _, plan = describe(url)
         items.append({
             "id": f"q{int(time.time()*1000)%100000000}",
-            "url": url, "title": title, "platform": kind, "plan": plan,
+            "url": url, "key": key, "title": title, "platform": kind, "plan": plan,
             "status": "待处理", "added": time.strftime("%Y-%m-%d %H:%M"),
             "error": "", "episode": "",
         })

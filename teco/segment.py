@@ -17,7 +17,9 @@ SYSTEM = """你是英语教学材料的编辑,专长是为「影子跟读/回音
 
 切分标准(按重要性排序):
 1. 每一段必须是一个能独立复述的完整意思——学习者要能听完一段就凭记忆说出来;
-2. 长度控制在 5-20 个词。宁可稍长而完整,也不要为了短而把一个意思劈成两半;
+2. 长度必须在 8-22 个词之间。**少于 8 个词的段是不合格的**——学习者要能
+   复述一个完整意思,四五个词的碎片既复述不出内容,视线还要反复跳。
+   宁可稍长而完整,绝不为了短而把一个意思劈成两半;
 3. 在自然的口语停顿处切:从句边界、并列连词前、话题转换处;
 4. 绝不在这些位置切开:冠词与名词之间、助动词与主动词之间、短语动词内部、
    固定搭配内部、介词与其宾语之间;
@@ -108,7 +110,47 @@ def _merge_tiny(segs, min_words=3):
     return out
 
 
-def segment_and_translate(llm, words, chunk_size=220, verbose=True):
+def _enforce_min(segs, words, min_words=8, max_words=26, max_gap=0.65):
+    """把太短的字幕并进邻居,直到达到可读长度。
+
+    实测发现:模型即使被要求 5-20 词,在自动字幕这种碎片化输入上仍会切得很碎,
+    出现大量 4-5 词的段。这种长度对影子跟读毫无意义——一句话被劈成三段,
+    既复述不出完整意思,视线还要在屏幕上反复跳。
+
+    合并时尊重真实停顿:两段之间若有超过 max_gap 秒的静音,说明那里本来
+    就该断开,再短也不合并。
+    """
+    if len(segs) < 2:
+        return segs
+    by_i = {w["i"]: w for w in words}
+
+    def n(seg):
+        return seg["e"] - seg["s"] + 1
+
+    def gap_after(seg, nxt):
+        a, b = by_i.get(seg["e"]), by_i.get(nxt["s"])
+        return (b["start"] - a["end"]) if (a and b) else 99.0
+
+    out = [dict(segs[0])]
+    for nxt in segs[1:]:
+        prev = out[-1]
+        too_short = n(prev) < min_words
+        fits = n(prev) + n(nxt) <= max_words
+        pause = gap_after(prev, nxt)
+        if too_short and fits and pause <= max_gap:
+            prev["e"] = nxt["e"]
+            prev["zh"] = (prev["zh"].rstrip("。,,") + ("," if prev["zh"] else "") + nxt["zh"]).strip(",")
+            continue
+        out.append(dict(nxt))
+    # 末段仍过短就并回前一段
+    if len(out) > 1 and n(out[-1]) < min_words and n(out[-2]) + n(out[-1]) <= max_words + 6:
+        out[-2]["e"] = out[-1]["e"]
+        out[-2]["zh"] = (out[-2]["zh"] + out[-1]["zh"]).strip()
+        out.pop()
+    return out
+
+
+def segment_and_translate(llm, words, chunk_size=220, min_words=8, verbose=True):
     """返回 segments: [{id, start, end, en, zh, w0, w1}]"""
     chunks = _chunk(words, chunk_size)
     all_segs = []
@@ -124,9 +166,9 @@ def segment_and_translate(llm, words, chunk_size=220, verbose=True):
         all_segs += _repair(data.get("segments", []), lo, hi)
 
     before = len(all_segs)
-    all_segs = _merge_tiny(all_segs)
+    all_segs = _enforce_min(_merge_tiny(all_segs), words, min_words=min_words)
     if verbose and before != len(all_segs):
-        print(f"  · 合并了 {before - len(all_segs)} 个过短的碎片段")
+        print(f"  · 合并过短片段:{before} 段 -> {len(all_segs)} 段(最短 {min_words} 词)")
 
     # 拼装:用词级时间戳还原每段的起止时间和原文
     by_i = {w["i"]: w for w in words}

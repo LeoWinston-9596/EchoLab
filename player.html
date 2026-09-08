@@ -198,6 +198,10 @@ kbd{background:var(--panel2);border:1px solid var(--line);border-bottom-width:2p
   .sub .en{font-size:17px}
   .sub .zh{font-size:15px}
   .tab{flex:1;text-align:center;padding:10px 6px}
+  /* 词卡上那排按钮在手机上过于抢眼,缩到约一半 */
+  .card .speak{font-size:10.5px;padding:2px 7px;min-height:24px;border-radius:6px}
+  .card .term{font-size:16px;gap:5px}
+  .card .quote{padding:4px 0;min-height:26px}
 }
 @media(max-width:900px) and (orientation:landscape){
   .app{flex-direction:row;padding:0 6px}
@@ -395,7 +399,8 @@ async function boot(){
   let idx;
   try{ idx=await (await fetch("library/index.json?"+Date.now())).json(); }
   catch(e){ return showEmpty(`读不到素材库。请用 <code>python serve.py</code> 启动,不要直接双击打开本文件。`); }
-  EPS=idx.episodes||[];
+  // 与素材库页保持同一顺序(最新在前),否则「上一个/下一个」和你看到的列表相反
+  EPS=(idx.episodes||[]).slice().sort((a,b)=>(b.created||"").localeCompare(a.created||""));
   if(!EPS.length) return showEmpty(`素材库还是空的。<br>先跑 <code>python demo.py</code> 看演示。`);
   $("#epSel").innerHTML=EPS.map(e=>`<option value="${esc(e.id)}">${esc(e.title)}</option>`).join("");
   $("#epSel").onchange=()=>load($("#epSel").value);
@@ -405,8 +410,19 @@ async function boot(){
 function showEmpty(html){$("#subBox").innerHTML=`<div class="empty">${html}</div>`}
 
 async function load(id){
-  EP=await (await fetch(`library/${id}/data.json?`+Date.now())).json();
+  try{
+    const r=await fetch(`library/${encodeURIComponent(id)}/data.json?`+Date.now());
+    if(!r.ok) throw new Error("HTTP "+r.status);
+    EP=await r.json();
+  }catch(err){
+    $("#subBox").innerHTML=`<div class="empty">这一期读取失败:${esc(String(err))}<br>
+      文件应在 library/${esc(id)}/data.json</div>`;
+    return;
+  }
   SEGS=EP.segments||[]; CARDS=EP.cards||[]; cur=-1;
+  // 换了素材必须把列表滚回顶部,否则会停在上一期的位置,看起来像没更新
+  $("#subBox").scrollTop=0; $("#cardBox").scrollTop=0; $("#favBox").scrollTop=0;
+  userScrolledAt=0;
   store.set("echolab.last",id);
   history.replaceState(null,"",`?ep=${encodeURIComponent(id)}`);
   $("#epSel").value=id; $("#epTtl").textContent=EP.title||id;
@@ -436,6 +452,7 @@ async function load(id){
   $("#bPrevEp").style.opacity=i<=0?.35:1; $("#bNextEp").style.opacity=i>=EPS.length-1?.35:1;
 
   renderSubs(); renderCards(); renderFav(); syncButtons(); offerResume();
+  document.querySelector('.tab[data-t="sub"]').click();
 }
 
 /* ---------- 上次听到哪 ---------- */
@@ -505,7 +522,8 @@ $("#subBox").addEventListener("scroll",()=>{
 function scrollToActive(el){
   const box=$("#subBox");
   // 让当前句落在列表可视区偏上的位置:既看得到下文,又不必把视线移到屏幕底部
-  const target=el.offsetTop-box.offsetTop-box.clientHeight*0.26;
+  // 贴在列表顶部——离视频最近,视线几乎不用离开画面
+  const target=el.offsetTop-box.offsetTop-8;
   autoScrolling=Date.now()+900;
   box.scrollTo({top:Math.max(0,target),behavior:"smooth"});
 }

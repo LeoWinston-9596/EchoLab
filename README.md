@@ -176,7 +176,23 @@ python process.py --url <YouTube网址> --force-download   # 强制下载跑识�
 --no-cards   只做字幕,跳过知识点卡片
 --no-cache   不用缓存,强制重新调用模型
 --keep-media 不复制视频进 library(省磁盘,但视频不能挪位置)
+--force      这个网址已经做过也照样重做一遍
 ```
+
+### 同一个视频只会解析一次
+
+判重按「这是哪个视频」而不是按链接字符串。下面这些都会被认成同一期,
+第二次投递会当场被拦下,不会重新花钱:
+
+```
+https://www.youtube.com/watch?v=abc12345678
+https://www.youtube.com/watch?v=abc12345678&t=100s
+https://youtu.be/abc12345678?si=xxxx
+https://www.youtube.com/shorts/abc12345678
+```
+
+非 YouTube 的网址也会先剥掉 `utm_*`、末尾斜杠这类不影响内容的部分再比。
+确实想重做同一个视频,加 `--force`。
 
 机器慢就用 `--asr-model base.en`,追求准确度用 `medium.en`。
 
@@ -206,8 +222,10 @@ vlog 是自然口语,有背景音和口音,**语音识别准确率通常在 85-9
 process.py            主流程:视频/网址 → data.json
 fetch.py              解析一个网址,看看里面有什么
 worker.py             处理收件箱队列
+repair.py             就地修已生成的 data.json(不花 API 钱)
 demo.py               生成演示内容(不需要 key)
 serve.py              本地服务(支持 Range 请求,视频才能拖动)
+library.html          素材库:按时长/作者排序,按作者看合集
 player.html           播放器(单文件)
 teco/
   llm.py              DeepSeek/Kimi 统一客户端 + 缓存 + 用量统计
@@ -220,9 +238,33 @@ teco/
   captions.py         YouTube 字幕获取与词级时间戳解析
   ingest.py           通用网址解析(直链/订阅源/页面/HLS)
   inbox.py            书签栏投递的队列
+  library.py          素材库索引与「这个视频做过没有」
 library/<期数>/       data.json + 视频 + 封面
 wordlists/            可选:权威考纲词表
 ```
+
+## 八点五、改了规则之后,老素材怎么跟上
+
+`repair.py` 专门干这件事:凡是本机算得出来的,就地改掉,不重新调用模型。
+
+```bash
+python repair.py --merge      # 按当前标准重新合并过短的语义群
+python repair.py --authors    # 回填作者(问一次 yt-dlp,不下载)
+python repair.py --reindex    # 只重建 library/index.json
+python repair.py --dry-run --merge   # 先看会改成什么样,不写文件
+```
+
+`--merge` 会改变段号,之前收藏的句子和播放进度会对不上,重新收藏即可;
+原文件会留一份 `data.json.bak`。
+
+## 八点六、改完代码跑一下测试
+
+```bash
+python tests/run_all.py
+```
+
+全部离线,不联网也不调模型,几秒钟跑完。覆盖网址解析、来源判重、
+语义群合并、以及 YouTube 自动字幕的滚动重播去重。
 
 ---
 

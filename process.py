@@ -48,6 +48,29 @@ def make_poster(video, out_png, at=3.0):
         return ""
 
 
+def find_existing(url):
+    """这个网址是不是已经解析过了。YouTube 按视频 ID 比对,其余按网址原文。"""
+    if not url:
+        return None
+    from teco.platforms import youtube_id
+    vid = youtube_id(url)
+    for d in sorted(LIB.iterdir()):
+        f = d / "data.json" if d.is_dir() else None
+        if not (f and f.exists()):
+            continue
+        try:
+            j = json.loads(f.read_text(encoding="utf-8"))
+        except Exception:
+            continue
+        if j.get("source_url") == url:
+            return j
+        if vid and j.get("media") == f"youtube:{vid}":
+            return j
+        if vid and youtube_id(j.get("source_url") or "") == vid:
+            return j
+    return None
+
+
 def update_index():
     """重建 library/index.json —— 播放器靠它列出所有期数。"""
     eps = []
@@ -59,7 +82,8 @@ def update_index():
                 eps.append({k: j.get(k) for k in
                             ("id", "title", "media", "poster", "duration", "topics",
                              "difficulty", "suggested_minutes", "wpm", "summary",
-                             "n_segments", "n_cards", "created")})
+                             "n_segments", "n_cards", "created", "uploader",
+                             "source_url")})
             except Exception as e:
                 print(f"  ! 跳过损坏的 {f}: {e}")
     eps.sort(key=lambda e: e.get("created") or "")
@@ -75,6 +99,10 @@ def main():
     ap.add_argument("--rss-index", type=int, default=0, help="订阅源里第几期")
     ap.add_argument("--force-download", action="store_true",
                     help="YouTube 也强制下载并跑语音识别(默认取字幕更快)")
+    ap.add_argument("--force", action="store_true",
+                    help="即使这个网址已经解析过,也重新解析一遍")
+    ap.add_argument("--min-words", type=int, default=8,
+                    help="每段字幕的最少词数,低于此值会与相邻段合并(默认 8)")
     ap.add_argument("--no-fallback", action="store_true",
                     help="YouTube 取不到字幕时直接失败,不自动转为下载识别")
     ap.add_argument("--title", default=None, help="这一期的标题")
@@ -98,6 +126,15 @@ def main():
 
     yt_id = None          # 非空表示走 YouTube 嵌入模式:不下载、不跑语音识别
     src = None
+    if args.url and not args.force:
+        # 重复投递很常见(书签点两次、同一个视频换了个链接形式),
+        # 重跑一遍既费时间又费钱,直接跳过并告诉用户它在哪
+        dup = find_existing(args.url)
+        if dup:
+            print(f"\n这个视频已经解析过了:《{dup.get('title')}》")
+            print(f"  素材库位置:library/{dup.get('id')}/")
+            print(f"  打开:python serve.py 然后进素材库,或加 --force 重新解析\n")
+            return
     if args.url:
         from teco.platforms import detect
         kind, info = detect(args.url)
@@ -190,7 +227,8 @@ def main():
 
     # 3) 语义群切分 + 翻译
     print("[3/6] 语义群切分 + 翻译")
-    segs = segment.segment_and_translate(llm, words, chunk_size=args.chunk)
+    segs = segment.segment_and_translate(llm, words, chunk_size=args.chunk,
+                                         min_words=args.min_words)
     print(f"      切成 {len(segs)} 个语义群")
 
     # 4) 整句 IPA(本地生成,零成本)
@@ -245,6 +283,7 @@ def main():
         "duration": info["duration"], "language": info["language"],
         "created": time.strftime("%Y-%m-%d"),
         "source_url": args.url or "",
+        "uploader": (cap_meta.get("uploader") if yt_id else "") or "",
         "n_segments": len(segs), "n_cards": len(kept),
         **m,
         "segments": segs,

@@ -51,3 +51,35 @@ PLAN = {
 def describe(url):
     kind, info = detect(url)
     return kind, info, PLAN.get(kind, "")
+
+
+# 分享链接上挂的这些参数不改变「是哪个视频」,去重时必须先剥掉
+JUNK_PARAMS = {
+    "t", "start", "time_continue", "si", "feature", "app", "ab_channel",
+    "fbclid", "gclid", "igshid", "spm", "share_token", "share_id", "vd_source",
+    "utm_source", "utm_medium", "utm_campaign", "utm_term", "utm_content",
+}
+
+
+def source_key(url):
+    """把一个网址归一成「这是哪个视频」的稳定标识,用于判重。
+
+    同一个视频会以很多种形态出现:youtu.be 短链、/shorts/、带 &t=100s 的
+    分享链接、末尾多一个斜杠……直接比字符串会把它们当成不同的视频,
+    于是同一期被反复解析、反复花钱。
+    """
+    if not url:
+        return ""
+    vid = youtube_id(url)
+    if vid:
+        return f"youtube:{vid}"        # 与 data.json 里 YouTube 期的 media 字段同形
+    p = urllib.parse.urlsplit(url.strip())
+    host = (p.hostname or "").lower()
+    if host.startswith("www."):
+        host = host[4:]
+    keep = [(k, v) for k, v in urllib.parse.parse_qsl(p.query)
+            if k.lower() not in JUNK_PARAMS]
+    keep.sort()
+    path = p.path.rstrip("/") or "/"
+    q = urllib.parse.urlencode(keep)
+    return f"url:{host}{path}" + (f"?{q}" if q else "")

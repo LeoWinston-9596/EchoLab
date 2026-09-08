@@ -26,6 +26,12 @@ input[type=search]{background:var(--panel);border:1px solid var(--line);border-r
 .chip{background:var(--panel);border:1px solid var(--line);border-radius:999px;
  padding:7px 13px;font-size:13px;cursor:pointer;color:var(--dim);white-space:nowrap}
 .chip.on{background:var(--accent-soft);border-color:var(--accent);color:var(--accent);font-weight:600}
+.sel{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:8px 11px;font-size:13px}
+#authors{gap:6px}
+#authors .chip{font-size:12.5px;padding:6px 11px}
+#authors .chip .c{color:var(--dim2);margin-left:4px;font-size:11px}
+.by{color:var(--dim2);font-size:11.5px;display:block;margin-top:1px;overflow:hidden;
+ text-overflow:ellipsis;white-space:nowrap}
 .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(232px,1fr));gap:16px}
 @media(max-width:520px){.grid{grid-template-columns:repeat(2,1fr);gap:11px}}
 .card{background:var(--panel);border:1px solid var(--line);border-radius:var(--r);
@@ -66,7 +72,15 @@ code{background:var(--panel2);padding:2px 7px;border-radius:5px;font-size:13px}
     <button class="chip" data-f="unfinished">未学完</button>
     <button class="chip" data-f="easy">★1-2 简单</button>
     <button class="chip" data-f="hard">★4-5 有挑战</button>
+    <select class="sel" id="sort">
+      <option value="new">最新加入</option>
+      <option value="old">最早加入</option>
+      <option value="short">时长 短→长</option>
+      <option value="long">时长 长→短</option>
+      <option value="author">按作者</option>
+    </select>
   </div>
+  <div class="bar" id="authors"></div>
   <div class="grid" id="grid"></div>
 </div>
 <script>
@@ -74,7 +88,7 @@ code{background:var(--panel2);padding:2px 7px;border-radius:5px;font-size:13px}
 const $=s=>document.querySelector(s);
 const store={get(k,d){try{const x=localStorage.getItem(k);return x===null?d:JSON.parse(x)}catch(e){return d}}};
 const PROG=store.get("echolab.progress",{});
-let EPS=[],filter="all",kw="";
+let EPS=[],filter="all",kw="",sortBy="new",author="";
 const esc=s=>String(s==null?"":s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
 const fmt=s=>`${Math.floor(s/60)}:${String(Math.round(s%60)).padStart(2,"0")}`;
 
@@ -105,6 +119,7 @@ function card(e){
     </div>
     <div class="body">
       <div class="t">${esc(e.title||e.id)}</div>
+      ${e.uploader?`<span class="by">@${esc(e.uploader)}</span>`:""}
       <div class="mrow">
         <span class="stars">${"★".repeat(e.difficulty||0)}${"☆".repeat(5-(e.difficulty||0))}</span>
         ${(e.topics||[]).slice(0,2).map(t=>`<span class="tag">${esc(t)}</span>`).join("")}
@@ -113,8 +128,19 @@ function card(e){
       </div>
     </div></a>`;
 }
+function renderAuthors(){
+  const m=new Map();
+  EPS.forEach(e=>{if(e.uploader)m.set(e.uploader,(m.get(e.uploader)||0)+1)});
+  const box=$("#authors");
+  if(!m.size){box.innerHTML="";return;}
+  box.innerHTML=`<button class="chip ${author?"":"on"}" data-a="">全部作者</button>`+
+    [...m.entries()].sort((a,b)=>b[1]-a[1]).map(([n,c])=>
+      `<button class="chip ${author===n?"on":""}" data-a="${esc(n)}">@${esc(n)}<span class="c">${c}</span></button>`).join("");
+  box.querySelectorAll(".chip").forEach(c=>c.onclick=()=>{author=c.dataset.a;renderAuthors();render()});
+}
 function render(){
   let list=EPS.filter(e=>{
+    if(author&&e.uploader!==author) return false;
     if(kw){const s=((e.title||"")+" "+(e.topics||[]).join(" ")+" "+(e.summary||"")).toLowerCase();
       if(!s.includes(kw)) return false;}
     if(filter==="unfinished") return pct(e)<100;
@@ -122,6 +148,15 @@ function render(){
     if(filter==="hard") return (e.difficulty||0)>=4;
     return true;
   });
+  const cmp={
+    new:(a,b)=>(b.created||"").localeCompare(a.created||""),
+    old:(a,b)=>(a.created||"").localeCompare(b.created||""),
+    short:(a,b)=>(a.duration||0)-(b.duration||0),
+    long:(a,b)=>(b.duration||0)-(a.duration||0),
+    author:(a,b)=>(a.uploader||"zzz").localeCompare(b.uploader||"zzz")
+                  ||(a.created||"").localeCompare(b.created||""),
+  }[sortBy];
+  list=list.slice().sort(cmp);
   $("#count").textContent=`${list.length} / ${EPS.length} 期`;
   $("#grid").innerHTML=list.length?list.map(card).join("")
     :`<div class="empty" style="grid-column:1/-1">没有匹配的内容。</div>`;
@@ -134,15 +169,16 @@ function render(){
       读不到素材库。请用 <code>python serve.py</code> 启动,不要直接双击打开本文件。</div>`;
     return;
   }
-  EPS=(idx.episodes||[]).slice().reverse();
+  EPS=(idx.episodes||[]).slice();
   if(!EPS.length){
     $("#grid").innerHTML=`<div class="empty" style="grid-column:1/-1">
       素材库还是空的。<br>先跑 <code>python demo.py</code> 看演示,<br>
       或用 <code>python process.py --url &lt;网址&gt;</code> 添加内容。</div>`;
     return;
   }
-  render();
+  renderAuthors(); render();
 })();
+$("#sort").onchange=e=>{sortBy=e.target.value;render()};
 $("#q").oninput=e=>{kw=e.target.value.trim().toLowerCase();render()};
 document.querySelectorAll(".chip").forEach(c=>c.onclick=()=>{
   document.querySelectorAll(".chip").forEach(x=>x.classList.toggle("on",x===c));
