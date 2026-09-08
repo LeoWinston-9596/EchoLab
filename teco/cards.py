@@ -163,12 +163,13 @@ def extract_cards(llm, segments, batch=10, verbose=True):
     return cards, notes
 
 
-def verify_and_enrich(cards, segments, wordlists=None):
+def verify_and_enrich(cards, segments, wordlists=None, llm=None, verbose=True):
     """三件事:剔除原文里查无此处的幻觉词条、补 IPA、用权威词表覆盖考级标签。
 
     第一件最重要——一个学习工具里出现凭空捏造的知识点是不可接受的。
+    llm 只是给音标兜底用的(espeak-ng 缺失时),传不传都不影响其它步骤。
     """
-    from .ipa import word_ipa
+    from . import ipa as ipa_mod
 
     by_id = {s["id"]: s for s in segments}
     kept, dropped = [], []
@@ -186,7 +187,6 @@ def verify_and_enrich(cards, segments, wordlists=None):
         c["seg"] = seg_id
         c["quote"] = seg["en"]
         c["start"], c["end"] = seg["start"], seg["end"]
-        c["ipa"] = word_ipa(c["term"])
         # 有权威词表就以词表为准,LLM 的考级标签只作兜底
         if wordlists:
             key = " ".join(_tokens(c["term"]))
@@ -205,6 +205,16 @@ def verify_and_enrich(cards, segments, wordlists=None):
             continue
         seen.add(k)
         uniq.append(c)
+
+    # 音标放在去重之后一次性补齐:先剔幻觉、再去重,剩下的才是真要注音的词条,
+    # 而且整批一起查语料库只在末尾写一次盘
+    ipa_map, st = ipa_mod.fill_missing([c["term"] for c in uniq], llm=llm, verbose=verbose)
+    for c in uniq:
+        c["ipa"] = ipa_map.get(ipa_mod.norm_term(c["term"]), {"us": "", "uk": ""})
+    if verbose and st["total"]:
+        print(f"  · IPA 语料库命中 {st['hit']}/{st['total']}"
+              f" · 新增 {st['new'] + st['llm']} 条(库存 {ipa_mod.corpus_size()})"
+              + (f" · {st['fail']} 条没算出来" if st["fail"] else ""))
     return uniq, dropped
 
 
