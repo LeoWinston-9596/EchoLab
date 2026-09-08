@@ -66,7 +66,7 @@ code{background:var(--panel2);padding:2px 7px;border-radius:5px;font-size:13px}
     <span class="count" id="count"></span>
   </header>
   <p class="sub">点任意一期开始学。进度会自动记住。</p>
-  <div class="bar">
+  <div class="bar" id="filters">
     <input type="search" id="q" placeholder="搜标题、主题…">
     <button class="chip on" data-f="all">全部</button>
     <button class="chip" data-f="unfinished">未学完</button>
@@ -88,7 +88,9 @@ code{background:var(--panel2);padding:2px 7px;border-radius:5px;font-size:13px}
 const $=s=>document.querySelector(s);
 const store={get(k,d){try{const x=localStorage.getItem(k);return x===null?d:JSON.parse(x)}catch(e){return d}}};
 const PROG=store.get("echolab.progress",{});
-let EPS=[],filter="all",kw="",sortBy="new",author="";
+// who 是「只看这个作者」的筛选值,空串表示全部。叫 who 是为了不和每一期
+// 自己的 e.author 混在一句话里
+let EPS=[],filter="all",kw="",sortBy="new",who="";
 const esc=s=>String(s==null?"":s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
 const fmt=s=>`${Math.floor(s/60)}:${String(Math.round(s%60)).padStart(2,"0")}`;
 
@@ -119,7 +121,7 @@ function card(e){
     </div>
     <div class="body">
       <div class="t">${esc(e.title||e.id)}</div>
-      ${e.uploader?`<span class="by">@${esc(e.uploader)}</span>`:""}
+      ${e.author?`<span class="by">@${esc(e.author)}</span>`:""}
       <div class="mrow">
         <span class="stars">${"★".repeat(e.difficulty||0)}${"☆".repeat(5-(e.difficulty||0))}</span>
         ${(e.topics||[]).slice(0,2).map(t=>`<span class="tag">${esc(t)}</span>`).join("")}
@@ -130,17 +132,17 @@ function card(e){
 }
 function renderAuthors(){
   const m=new Map();
-  EPS.forEach(e=>{if(e.uploader)m.set(e.uploader,(m.get(e.uploader)||0)+1)});
+  EPS.forEach(e=>{if(e.author)m.set(e.author,(m.get(e.author)||0)+1)});
   const box=$("#authors");
   if(!m.size){box.innerHTML="";return;}
-  box.innerHTML=`<button class="chip ${author?"":"on"}" data-a="">全部作者</button>`+
-    [...m.entries()].sort((a,b)=>b[1]-a[1]).map(([n,c])=>
-      `<button class="chip ${author===n?"on":""}" data-a="${esc(n)}">@${esc(n)}<span class="c">${c}</span></button>`).join("");
-  box.querySelectorAll(".chip").forEach(c=>c.onclick=()=>{author=c.dataset.a;renderAuthors();render()});
+  box.innerHTML=`<button class="chip ${who?"":"on"}" data-a="">全部作者</button>`+
+    [...m.entries()].sort((a,b)=>b[1]-a[1]||a[0].localeCompare(b[0])).map(([n,c])=>
+      `<button class="chip ${who===n?"on":""}" data-a="${esc(n)}">@${esc(n)}<span class="c">${c}</span></button>`).join("");
+  box.querySelectorAll(".chip").forEach(c=>c.onclick=()=>{who=c.dataset.a;renderAuthors();render()});
 }
 function render(){
   let list=EPS.filter(e=>{
-    if(author&&e.uploader!==author) return false;
+    if(who&&e.author!==who) return false;
     if(kw){const s=((e.title||"")+" "+(e.topics||[]).join(" ")+" "+(e.summary||"")).toLowerCase();
       if(!s.includes(kw)) return false;}
     if(filter==="unfinished") return pct(e)<100;
@@ -153,7 +155,8 @@ function render(){
     old:(a,b)=>(a.created||"").localeCompare(b.created||""),
     short:(a,b)=>(a.duration||0)-(b.duration||0),
     long:(a,b)=>(b.duration||0)-(a.duration||0),
-    author:(a,b)=>(a.uploader||"zzz").localeCompare(b.uploader||"zzz")
+    // 没标注作者的排最后:用「」占位会排到最前,一进来全是没作者的
+    author:(a,b)=>(a.author||"\uffff").localeCompare(b.author||"\uffff")
                   ||(a.created||"").localeCompare(b.created||""),
   }[sortBy];
   list=list.slice().sort(cmp);
@@ -180,8 +183,10 @@ function render(){
 })();
 $("#sort").onchange=e=>{sortBy=e.target.value;render()};
 $("#q").oninput=e=>{kw=e.target.value.trim().toLowerCase();render()};
-document.querySelectorAll(".chip").forEach(c=>c.onclick=()=>{
-  document.querySelectorAll(".chip").forEach(x=>x.classList.toggle("on",x===c));
+// 只在筛选那一栏里切换高亮:作者栏用的也是 .chip,不限定范围的话
+// 点一下「未学完」会把已选中的作者取消高亮,而筛选其实还生效着
+$("#filters").querySelectorAll(".chip").forEach(c=>c.onclick=()=>{
+  $("#filters").querySelectorAll(".chip").forEach(x=>x.classList.toggle("on",x===c));
   filter=c.dataset.f; render();
 });
 </script>

@@ -72,24 +72,14 @@ def find_existing(url):
 
 
 def update_index():
-    """重建 library/index.json —— 播放器靠它列出所有期数。"""
-    eps = []
-    for d in sorted(LIB.iterdir()):
-        f = d / "data.json" if d.is_dir() else None
-        if f and f.exists():
-            try:
-                j = json.loads(f.read_text(encoding="utf-8"))
-                eps.append({k: j.get(k) for k in
-                            ("id", "title", "media", "poster", "duration", "topics",
-                             "difficulty", "suggested_minutes", "wpm", "summary",
-                             "n_segments", "n_cards", "created", "uploader",
-                             "source_url")})
-            except Exception as e:
-                print(f"  ! 跳过损坏的 {f}: {e}")
-    eps.sort(key=lambda e: e.get("created") or "")
-    (LIB / "index.json").write_text(
-        json.dumps({"episodes": eps}, ensure_ascii=False, indent=1), encoding="utf-8")
-    return len(eps)
+    """重建 library/index.json。真正的实现在 teco/library.py,这里只做转发。
+
+    这里原本另有一份独立的字段清单,和 teco/library.py 的那份慢慢长歪了:
+    一边写 uploader、一边写 author,于是素材库页的作者筛选一个人都列不出来。
+    字段清单只能有一份。demo.py 还在 import 这个名字,所以函数留着。
+    """
+    from teco import library as lib
+    return lib.update_index()
 
 
 def main():
@@ -276,6 +266,14 @@ def main():
         media_ref = media_name
         poster = make_poster(src, out_dir / "poster.jpg")
 
+    # 作者:YouTube 的字幕元数据里直接带;其余来源(TikTok/抖音/播客)问一次
+    # yt-dlp 的元数据,不下载。不补的话素材库按作者筛选只对 YouTube 有效
+    author = (cap_meta.get("uploader") or "") if yt_id else ""
+    if not author and args.url:
+        from teco.captions import fetch_uploader
+        author = fetch_uploader(args.url)
+    from teco.platforms import source_key
+
     low = asr.low_confidence_words(words) if not yt_id else []
     data = {
         "id": ep_id, "title": title,
@@ -283,7 +281,8 @@ def main():
         "duration": info["duration"], "language": info["language"],
         "created": time.strftime("%Y-%m-%d"),
         "source_url": args.url or "",
-        "uploader": (cap_meta.get("uploader") if yt_id else "") or "",
+        "source_key": source_key(args.url) if args.url else "",
+        "author": author,
         "n_segments": len(segs), "n_cards": len(kept),
         **m,
         "segments": segs,
@@ -300,7 +299,8 @@ def main():
 
     print(f"\n✓ 完成:library/{ep_id}/data.json")
     print(f"  难度 {'★'*m['difficulty']}{'☆'*(5-m['difficulty'])} · 语速 {m['wpm']} 词/分"
-          f" · 建议学习 {m['suggested_minutes']} 分钟 · 主题 {'/'.join(m['topics']) or '—'}")
+          f" · 建议学习 {m['suggested_minutes']} 分钟 · 主题 {'/'.join(m['topics']) or '—'}"
+          + (f" · 作者 {author}" if author else ""))
     print(f"  素材库现有 {n} 期 · 耗时 {time.time()-t0:.0f}s")
     print(f"  {llm.cost_report()}")
     if low:
