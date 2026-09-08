@@ -1,0 +1,86 @@
+name: 发布 Release
+
+# EchoLab 是本地运行的工具,没有服务器可部署,所以这里没有传统意义上的「CD」。
+# 真正有价值的自动化是这个:打一个 v* 标签,先把全套离线检查重跑一遍,
+# 通过了才自动建 Release 并根据合并记录生成更新说明。
+# 使用者拿到的是一个「已经验证过能跑」的快照,而不是随手一个 commit。
+#
+# 用法:
+#   git tag v0.2.0 && git push origin v0.2.0
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "要发布的标签(必须已经推到远端)"
+        required: true
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  PYTHONUTF8: "1"
+  PYTHONIOENCODING: "utf-8"
+  PIP_DISABLE_PIP_VERSION_CHECK: "1"
+
+jobs:
+  # 发布前必须再验一遍。标签可能打在一个 CI 没覆盖到的提交上。
+  verify:
+    name: 发布前复检
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.inputs.tag || github.ref }}
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+          cache: pip
+          cache-dependency-path: requirements.txt
+
+      - name: 装依赖
+        shell: bash
+        run: |
+          python -m pip install --upgrade pip
+          grep -v -i '^[[:space:]]*faster-whisper' requirements.txt > ci-requirements.txt || true
+          pip install -r ci-requirements.txt
+
+      - name: 导入健全性检查
+        run: python .github/scripts/check_imports.py
+
+      - name: 离线测试
+        run: python tests/run_all.py
+
+  release:
+    name: 建 Release
+    needs: verify
+    runs-on: ubuntu-latest
+    permissions:
+      # 建 Release 需要写权限,仅此一处
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.inputs.tag || github.ref }}
+          # --generate-notes 要靠历史记录归纳更新说明
+          fetch-depth: 0
+
+      - name: 建 Release 并自动生成更新说明
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ github.event.inputs.tag || github.ref_name }}
+        run: |
+          # 只用 GitHub 自带的 GITHUB_TOKEN,不需要任何自建密钥。
+          # 附件用 GitHub 自动生成的源码包即可:library/ 里的素材没进版本库,
+          # 所以源码包天然是干净的,不会把几十期视频打进去。
+          gh release create "$TAG" \
+            --title "$TAG" \
+            --generate-notes \
+            --verify-tag

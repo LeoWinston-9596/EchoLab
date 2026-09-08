@@ -1,0 +1,116 @@
+name: CI
+
+# 推送和 PR 都跑。纯文档改动不值得占用额度,跳过。
+on:
+  push:
+    branches: ["**"]
+    paths-ignore:
+      - "**/*.md"
+      - "docs/**"
+  pull_request:
+    paths-ignore:
+      - "**/*.md"
+      - "docs/**"
+  workflow_dispatch:
+
+# 同一分支上新推送会顶掉还在跑的旧任务
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+# 只读权限。这条流水线不写仓库、不发包,也不需要任何密钥。
+permissions:
+  contents: read
+
+env:
+  # 中文 Windows 控制台默认 GBK,打不出中文和 ✓;强制整条流水线走 UTF-8
+  PYTHONUTF8: "1"
+  PYTHONIOENCODING: "utf-8"
+  PIP_DISABLE_PIP_VERSION_CHECK: "1"
+
+jobs:
+  # ---------------------------------------------------------------
+  # 静态检查:只抓真 bug 的宽松 lint,规则表见仓库根目录 .ruff.toml
+  # 跟操作系统无关,只在 ubuntu 上跑一次就够
+  # ---------------------------------------------------------------
+  lint:
+    name: 代码体检 (ruff)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: 装 ruff
+        run: pip install "ruff~=0.16.6"
+
+      - name: ruff check
+        run: ruff check --output-format=github .
+
+  # ---------------------------------------------------------------
+  # 健全性 + 离线测试。跨操作系统、跨 Python 版本各跑一遍。
+  # ---------------------------------------------------------------
+  test:
+    name: ${{ matrix.os }} · Python ${{ matrix.python }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # 支持版本的下限
+          - { os: ubuntu-latest, python: "3.10" }
+          # 作者本机的版本
+          - { os: ubuntu-latest, python: "3.13" }
+          # 使用者的真实环境。编码问题(GBK / 路径分隔符 / 大小写)只有 Windows 才暴露得出来
+          - { os: windows-latest, python: "3.13" }
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+          cache: pip
+          cache-dependency-path: requirements.txt
+
+      - name: 装依赖(跳过 CI 用不上的重依赖)
+        shell: bash
+        run: |
+          python -m pip install --upgrade pip
+          # faster-whisper 只在 teco/asr.py 的函数体里延迟导入,CI 不跑语音识别,
+          # 而它会拖进 ctranslate2 / onnxruntime 几百 MB,装了纯属浪费时间。
+          # 这里从 requirements.txt 现过滤,而不是另维护一份清单——
+          # 以后新增的依赖会被自动带上,不会漏装。
+          # 末尾的 || true 是防 grep 在极端情况(过滤后一行不剩)下返回非零
+          grep -v -i '^[[:space:]]*faster-whisper' requirements.txt > ci-requirements.txt || true
+          echo "----- CI 实际安装的依赖 -----"
+          cat ci-requirements.txt
+          pip install -r ci-requirements.txt
+
+      - name: 确认这是一个不联网、无密钥的环境
+        shell: bash
+        run: |
+          # 测试和健全性检查本来就全离线。这一步是兜底:
+          # 万一以后有人往流水线里塞了 key,或者 .env 被误提交,在这里当场拦下。
+          if [ -f .env ]; then
+            echo "::error::.env 含密钥,绝不该进版本库"
+            exit 1
+          fi
+          for v in DEEPSEEK_API_KEY MOONSHOT_API_KEY OPENAI_API_KEY; do
+            if [ -n "${!v:-}" ]; then
+              echo "::error::CI 里不该出现 $v —— 所有检查都必须是离线的"
+              exit 1
+            fi
+          done
+          echo "✓ 无 .env、无 LLM 密钥,后续步骤只能走离线路径"
+
+      # 核心的一步。详细说明见脚本自己的文档字符串。
+      # 简单讲:compileall 只查语法,查不出「import 了一个已经被删掉的函数」;
+      # 而只把模块 import 一遍,又漏掉写在函数体里的延迟导入。这个脚本两样都覆盖。
+      - name: 导入健全性检查
+        run: python .github/scripts/check_imports.py
+
+      - name: 离线测试
+        run: python tests/run_all.py
