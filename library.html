@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>EchoLab · 素材库</title>
+<title>EchoLab</title>
 <style>
 :root{--bg:#0f131a;--panel:#161b24;--panel2:#1c222d;--line:#2a323f;--fg:#e8edf5;
  --dim:#94a3b8;--dim2:#64748b;--accent:#5b9dff;--accent-soft:#5b9dff22;--active:#ffd76a;--r:14px}
@@ -74,33 +74,37 @@ code{background:var(--panel2);padding:2px 7px;border-radius:5px;font-size:13px}
 .qitem .act button{background:var(--panel2);border:1px solid var(--line);border-radius:8px;
  padding:4px 10px;font-size:12px;cursor:pointer;color:inherit}
 </style>
+<script src="i18n.js"></script>
 </head>
 <body>
 <div class="wrap">
   <header>
-    <h1>EchoLab<span>·</span>素材库</h1>
+    <h1>EchoLab<span>·</span><span data-i18n="素材库">素材库</span></h1>
+    <select data-language aria-label="Interface language" style="font:inherit;max-width:110px;padding:5px;border-radius:7px;background:var(--panel,#fff);color:inherit;border:1px solid var(--line,#ccc)"><option value="en">English</option><option value="zh-CN">中文</option></select>
     <span class="count" id="count"></span>
   </header>
-  <p class="sub">点任意一期开始学。进度会自动记住。刷视频时点书签即可入队,会自动解析。</p>
+  <p class="sub"><span data-i18n="点任意一期开始学。进度会自动记住。刷视频时点书签即可入队,会自动解析。">点任意一期开始学。进度会自动记住。刷视频时点书签即可入队,会自动解析。</span></p>
   <div class="queue" id="queue"></div>
   <div class="bar" id="filters">
-    <input type="search" id="q" placeholder="搜标题、主题…">
-    <button class="chip on" data-f="all">全部</button>
-    <button class="chip" data-f="unfinished">未学完</button>
-    <button class="chip" data-f="easy">★1-2 简单</button>
-    <button class="chip" data-f="hard">★4-5 有挑战</button>
+    <input type="search" id="q" placeholder="搜标题、主题…" data-i18n-placeholder="搜标题、主题…">
+    <button class="chip on" data-f="all"><span data-i18n="全部">全部</span></button>
+    <button class="chip" data-f="unfinished"><span data-i18n="未学完">未学完</span></button>
+    <button class="chip" data-f="easy"><span data-i18n="★1-2 简单">★1-2 简单</span></button>
+    <button class="chip" data-f="hard"><span data-i18n="★4-5 有挑战">★4-5 有挑战</span></button>
     <select class="sel" id="sort">
-      <option value="new">最新加入</option>
-      <option value="old">最早加入</option>
-      <option value="short">时长 短→长</option>
-      <option value="long">时长 长→短</option>
-      <option value="author">按作者</option>
+      <option value="new" data-i18n="最新加入">最新加入</option>
+      <option value="old" data-i18n="最早加入">最早加入</option>
+      <option value="short" data-i18n="时长 短→长">时长 短→长</option>
+      <option value="long" data-i18n="时长 长→短">时长 长→短</option>
+      <option value="author" data-i18n="按作者">按作者</option>
     </select>
   </div>
   <div class="bar" id="authors"></div>
   <div class="grid" id="grid"></div>
 </div>
 <script>
+const t = EchoI18n.t;
+
 "use strict";
 const $=s=>document.querySelector(s);
 const store={get(k,d){try{const x=localStorage.getItem(k);return x===null?d:JSON.parse(x)}catch(e){return d}}};
@@ -118,7 +122,7 @@ function thumbOf(e){
   return "";
 }
 const srcOf=e=>/^youtube:/.test(e.media||"")?"YouTube"
-  :(/\.(wav|mp3|m4a|aac|ogg|flac)$/i.test(e.media||"")?"音频":"");
+  :(/\.(wav|mp3|m4a|aac|ogg|flac)$/i.test(e.media||"")?t("音频"):"");
 
 function pct(e){
   const p=PROG[e.id];
@@ -142,8 +146,8 @@ function card(e){
       <div class="mrow">
         <span class="stars">${"★".repeat(e.difficulty||0)}${"☆".repeat(5-(e.difficulty||0))}</span>
         ${(e.topics||[]).slice(0,2).map(t=>`<span class="tag">${esc(t)}</span>`).join("")}
-        <span>${e.n_cards||0} 词卡</span>
-        ${p?`<span style="color:var(--active)">${p===100?"已学完":p+"%"}</span>`:""}
+        <span>${e.n_cards||0} ${t("词卡")}</span>
+        ${p?`<span style="color:var(--active)">${p===100?t("已学完"):p+"%"}</span>`:""}
       </div>
     </div></a>`;
 }
@@ -152,7 +156,7 @@ function renderAuthors(){
   EPS.forEach(e=>{if(e.author)m.set(e.author,(m.get(e.author)||0)+1)});
   const box=$("#authors");
   if(!m.size){box.innerHTML="";return;}
-  box.innerHTML=`<button class="chip ${who?"":"on"}" data-a="">全部作者</button>`+
+  box.innerHTML=`<button class="chip ${who?"":"on"}" data-a="">${t("全部作者")}</button>`+
     [...m.entries()].sort((a,b)=>b[1]-a[1]||a[0].localeCompare(b[0])).map(([n,c])=>
       `<button class="chip ${who===n?"on":""}" data-a="${esc(n)}">@${esc(n)}<span class="c">${c}</span></button>`).join("");
   box.querySelectorAll(".chip").forEach(c=>c.onclick=()=>{who=c.dataset.a;renderAuthors();render()});
@@ -177,17 +181,18 @@ function render(){
                   ||(a.created||"").localeCompare(b.created||""),
   }[sortBy];
   list=list.slice().sort(cmp);
-  $("#count").textContent=`${list.length} / ${EPS.length} 期`;
+  $("#count").textContent=`${list.length} / ${EPS.length} ${t("期")}`;
   $("#grid").innerHTML=list.length?list.map(card).join("")
-    :`<div class="empty" style="grid-column:1/-1">没有匹配的内容。</div>`;
+    :`<div class="empty" style="grid-column:1/-1">${t("没有匹配的内容。")}</div>`;
 }
-let lastCur="";
+let lastCur="", queueData=null;
 function qStatus(it, cur){
-  if(cur && it.id===cur.id) return ["正在解析","run"];
-  return ({"待处理":["排队中",""],"处理中":["正在解析","run"],"已完成":["已完成",""],
+  if(cur && it.id===cur.id) return [t("正在解析"),"run"];
+  return ({"待处理":[t("排队中"),""],"处理中":[t("正在解析"),"run"],"已完成":["已完成",""],
            "失败":["失败","bad"],"已跳过":["已跳过",""]})[it.status] || [it.status,""];
 }
 function renderQueue(data){
+  queueData=data;
   const box=$("#queue");
   if(!data){box.classList.remove("on");return;}
   const items=(data.items||[]).filter(i=>i.status!=="已完成" && i.status!=="已跳过");
@@ -197,15 +202,15 @@ function renderQueue(data){
   lastCur=curId;
   if(!items.length && !cur){box.classList.remove("on");return;}
   box.classList.add("on");
-  box.innerHTML=`<h2>${data.watching?"队列会自动解析":"队列(解析未启动,请用启动脚本或 python serve.py)"}</h2>`+
+  box.innerHTML=`<h2>${data.watching?t("队列会自动解析"):t("队列(解析未启动,请用启动脚本或 python serve.py)")}</h2>`+
     items.map(it=>{
       const [lab,cls]=qStatus(it,cur);
       const retry=it.status==="失败"
-        ? `<div class="act"><button data-a="retry" data-id="${esc(it.id)}">重试</button>
-            <button data-a="dismiss" data-id="${esc(it.id)}">去掉</button></div>` : "";
+        ? `<div class="act"><button data-a="retry" data-id="${esc(it.id)}">${t("重试")}</button>
+            <button data-a="dismiss" data-id="${esc(it.id)}">${t("去掉")}</button></div>` : "";
       const title=it.title||it.url||"";
       return `<div class="qitem">
-        <span class="st ${cls}">${lab}</span>
+        <span class="st ${cls}">${esc(t(lab))}</span>
         <div class="tx"><b>${esc(title.slice(0,80))}</b>
           <div class="u">${esc(it.error||it.plan||it.url||"")}</div></div>${retry}</div>`;
     }).join("");
@@ -227,7 +232,7 @@ async function reloadLibrary(){
     EPS=(idx.episodes||[]).slice();
     if(!EPS.length){
       $("#grid").innerHTML=`<div class="empty" style="grid-column:1/-1">
-        素材库还是空的。用书签存一条视频,解析完会出现在这里。</div>`;
+        ${t("素材库还是空的。用书签存一条视频,解析完会出现在这里。")}</div>`;
       $("#count").textContent="";
       $("#authors").innerHTML="";
       return;
@@ -235,7 +240,7 @@ async function reloadLibrary(){
     renderAuthors(); render();
   }catch(e){
     $("#grid").innerHTML=`<div class="empty" style="grid-column:1/-1">
-      读不到素材库。请用 <code>python serve.py</code> 启动,不要直接双击打开本文件。</div>`;
+      ${t("读不到素材库。请用 ")}<code>python serve.py</code>${t(" 启动,不要直接双击打开本文件。")}</div>`;
   }
 }
 (async()=>{
@@ -251,6 +256,7 @@ $("#filters").querySelectorAll(".chip").forEach(c=>c.onclick=()=>{
   $("#filters").querySelectorAll(".chip").forEach(x=>x.classList.toggle("on",x===c));
   filter=c.dataset.f; render();
 });
+window.addEventListener("echolab:language",()=>{reloadLibrary();renderQueue(queueData)});
 </script>
 </body>
 </html>

@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,maximum-scale=1">
-<title>EchoLab · 看视频学英语</title>
+<title>EchoLab</title>
 <style>
 :root{
   --bg:#0f131a; --panel:#161b24; --panel2:#1c222d; --line:#2a323f;
@@ -232,17 +232,19 @@ kbd{background:var(--panel2);border:1px solid var(--line);border-bottom-width:2p
   .scroll{padding:8px 6px 40vh}
 }
 </style>
+<script src="i18n.js"></script>
 </head>
 <body>
 <div class="app">
   <!-- 上:视频与控制(手机上固定不动) -->
   <div class="col top">
     <div class="topbar">
-      <a class="brand" href="library.html" title="回到素材库">EchoLab<span>·</span>看视频学英语</a>
+      <a class="brand" href="library.html" title="回到素材库" data-i18n-title="回到素材库">EchoLab<span>·</span><span data-i18n="看视频学英语">看视频学英语</span></a>
+      <select data-language aria-label="Interface language" class="btn sm"><option value="en">English</option><option value="zh-CN">中文</option></select>
       <span class="epttl" id="epTtl"></span>
       <div class="epnav">
-        <button class="btn sm icon" id="bPrevEp" title="上一个素材">⏮</button>
-        <button class="btn sm icon" id="bNextEp" title="下一个素材">⏭</button>
+        <button class="btn sm icon" id="bPrevEp" title="上一个素材" data-i18n-title="上一个素材">⏮</button>
+        <button class="btn sm icon" id="bNextEp" title="下一个素材" data-i18n-title="下一个素材">⏭</button>
         <select class="ep desk-only" id="epSel"></select>
       </div>
     </div>
@@ -258,19 +260,19 @@ kbd{background:var(--panel2);border:1px solid var(--line);border-bottom-width:2p
 
     <div class="controls">
       <div class="row main">
-        <button class="btn grow" id="bPrev">↑ 上一句</button>
-        <button class="btn primary grow" id="bPlay">▶ 播放</button>
-        <button class="btn grow" id="bNext">下一句 ↓</button>
-        <button class="btn icon only-m" id="bMore" title="更多设置">···</button>
+        <button class="btn grow" id="bPrev"><span data-i18n="↑ 上一句">↑ 上一句</span></button>
+        <button class="btn primary grow" id="bPlay"><span data-i18n="▶ 播放">▶ 播放</span></button>
+        <button class="btn grow" id="bNext"><span data-i18n="下一句 ↓">下一句 ↓</span></button>
+        <button class="btn icon only-m" id="bMore" title="更多设置" data-i18n-title="更多设置">···</button>
       </div>
       <div class="extra" id="extra">
       <div class="sheetbar only-m">
-        <span>播放与显示设置</span><button class="btn sm" id="bClose">完成</button>
+        <span><span data-i18n="播放与显示设置">播放与显示设置</span></span><button class="btn sm" id="bClose"><span data-i18n="完成">完成</span></button>
       </div>
       <div class="row">
-        <button class="btn sm grow" id="bReplay">↺ 重听本句</button>
-        <button class="btn sm grow" id="bLoop">🔁 单句循环</button>
-        <button class="btn sm grow" id="bPause">⏸ 单句暂停</button>
+        <button class="btn sm grow" id="bReplay"><span data-i18n="↺ 重听本句">↺ 重听本句</span></button>
+        <button class="btn sm grow" id="bLoop"><span data-i18n="🔁 单句循环">🔁 单句循环</span></button>
+        <button class="btn sm grow" id="bPause"><span data-i18n="⏸ 单句暂停">⏸ 单句暂停</span></button>
       </div>
       <div class="row">
         <div class="seg" id="rates">
@@ -281,17 +283,17 @@ kbd{background:var(--panel2);border:1px solid var(--line);border-bottom-width:2p
           <button class="btn" data-r="1.5">1.5</button>
         </div>
         <div class="seg" id="modes">
-          <button class="btn on" data-m="both">双语</button>
-          <button class="btn" data-m="en">英</button>
-          <button class="btn" data-m="zh">中</button>
+          <button class="btn on" data-m="both"><span data-i18n="双语">双语</span></button>
+          <button class="btn" data-m="en"><span data-i18n="英">英</span></button>
+          <button class="btn" data-m="zh"><span data-i18n="中">中</span></button>
           <button class="btn" data-m="ipa">IPA</button>
         </div>
-        <button class="btn sm" id="bMark">🎨 标注</button>
-        <button class="btn sm" id="bFollow">🎯 跟随</button>
+        <button class="btn sm" id="bMark"><span data-i18n="🎨 标注">🎨 标注</span></button>
+        <button class="btn sm" id="bFollow"><span data-i18n="🎯 跟随">🎯 跟随</span></button>
       </div>
       <div class="help">
-        <kbd>空格</kbd> 播放 · <kbd>←</kbd><kbd>→</kbd> 上下句 · <kbd>R</kbd> 重听 ·
-        <kbd>L</kbd> 循环 · <kbd>P</kbd> 单句暂停 · <kbd>[</kbd><kbd>]</kbd> 上/下一个素材
+        <kbd><span data-i18n="空格">空格</span></kbd><span data-i18n=" 播放 · "> 播放 · </span><kbd>←</kbd><kbd>→</kbd><span data-i18n=" 上下句 · "> 上下句 · </span><kbd>R</kbd><span data-i18n=" 重听 ·"> 重听 ·</span>
+        <kbd>L</kbd><span data-i18n=" 循环 · "> 循环 · </span><kbd>P</kbd><span data-i18n=" 单句暂停 · "> 单句暂停 · </span><kbd>[</kbd><kbd>]</kbd><span data-i18n=" 上/下一个素材"> 上/下一个素材</span>
       </div>
       </div>
     </div>
@@ -302,10 +304,10 @@ kbd{background:var(--panel2);border:1px solid var(--line);border-bottom-width:2p
   <div class="col bot">
     <div class="panel">
       <div class="tabs">
-        <button class="tab on" data-t="sub">字幕<span class="n" id="nSub"></span></button>
-        <button class="tab" data-t="word" title="单个的词,一个个记">单词<span class="n" id="nWord"></span></button>
-        <button class="tab" data-t="chunk" title="lexical chunks:短语、短语动词、搭配、口语句式、话语标记——整块记住,不要拆开背">语块<span class="n" id="nChunk"></span></button>
-        <button class="tab" data-t="fav">收藏<span class="n" id="nFav"></span></button>
+        <button class="tab on" data-t="sub"><span data-i18n="字幕">字幕</span><span class="n" id="nSub"></span></button>
+        <button class="tab" data-t="word" title="单个的词,一个个记" data-i18n-title="单个的词,一个个记"><span data-i18n="单词">单词</span><span class="n" id="nWord"></span></button>
+        <button class="tab" data-t="chunk" title="lexical chunks:短语、短语动词、搭配、口语句式、话语标记——整块记住,不要拆开背" data-i18n-title="lexical chunks:短语、短语动词、搭配、口语句式、话语标记——整块记住,不要拆开背"><span data-i18n="语块">语块</span><span class="n" id="nChunk"></span></button>
+        <button class="tab" data-t="fav"><span data-i18n="收藏">收藏</span><span class="n" id="nFav"></span></button>
       </div>
       <div class="scroll" id="subBox"></div>
       <div class="scroll hidden" id="wordBox"></div>
@@ -316,6 +318,8 @@ kbd{background:var(--panel2);border:1px solid var(--line);border-bottom-width:2p
 </div>
 
 <script>
+const t = EchoI18n.t;
+
 "use strict";
 const $=s=>document.querySelector(s);
 const v=$("#v");
@@ -457,11 +461,11 @@ async function migrateFav(){
 async function boot(){
   let idx;
   try{ idx=await (await fetch("library/index.json?"+Date.now())).json(); }
-  catch(e){ return showEmpty(`读不到素材库。请用 <code>python serve.py</code> 启动,不要直接双击打开本文件。`); }
+  catch(e){ return showEmpty(`${t("读不到素材库。请用 ")}<code>python serve.py</code>${t(" 启动,不要直接双击打开本文件。")}`); }
   await migrateFav();
   // 与素材库页保持同一顺序(最新在前),否则「上一个/下一个」和你看到的列表相反
   EPS=(idx.episodes||[]).slice().sort((a,b)=>(b.created||"").localeCompare(a.created||""));
-  if(!EPS.length) return showEmpty(`素材库还是空的。<br>先跑 <code>python demo.py</code> 看演示。`);
+  if(!EPS.length) return showEmpty(`${t("素材库还是空的。")}<br>${t("先跑 ")}<code>python demo.py</code>${t(" 看演示。")}`);
   $("#epSel").innerHTML=EPS.map(e=>`<option value="${esc(e.id)}">${esc(e.title)}</option>`).join("");
   $("#epSel").onchange=()=>load($("#epSel").value);
   const want=qs("ep")||store.get("echolab.last",null);
@@ -475,8 +479,8 @@ async function load(id){
     if(!r.ok) throw new Error("HTTP "+r.status);
     EP=await r.json();
   }catch(err){
-    $("#subBox").innerHTML=`<div class="empty">这一期读取失败:${esc(String(err))}<br>
-      文件应在 library/${esc(id)}/data.json</div>`;
+    $("#subBox").innerHTML=`<div class="empty">${t("这一期读取失败:")}${esc(String(err))}<br>
+      ${t("文件应在 ")}library/${esc(id)}/data.json</div>`;
     return;
   }
   SEGS=EP.segments||[]; CARDS=EP.cards||[]; cur=-1;
@@ -491,20 +495,7 @@ async function load(id){
   document.title=`${EP.title||id} · EchoLab`;
 
   const ytm=/^youtube:([A-Za-z0-9_-]{11})$/.exec(EP.media||"");
-  const audioOnly=!ytm&&/\.(wav|mp3|m4a|aac|ogg|flac)(\?|$)/i.test(EP.media||"");
-  $("#stage").classList.toggle("audio-only",audioOnly);
-  $("#audNote").classList.toggle("hidden",!audioOnly);
-  if(audioOnly)$("#audNote").innerHTML=`<b>🎧 ${esc(EP.title)}</b>这一期是纯音频素材<br>右侧字幕、单词、语块功能完全一样`;
-
-  $("#meta").innerHTML=[
-    `<span class="stars">${"★".repeat(EP.difficulty||0)}${"☆".repeat(5-(EP.difficulty||0))}</span>`,
-    ...(EP.topics||[]).map(t=>`<span class="chip">${esc(t)}</span>`),
-    `<span class="chip">语速 ${EP.wpm} 词/分</span>`,
-    `<span class="chip">建议 ${EP.suggested_minutes} 分钟</span>`,
-    `<span class="chip">${fmt(EP.duration||0)}</span>`,
-    ytm?`<span class="badge">YouTube 嵌入 · 未下载</span>`:"",
-    EP.summary?`<span>${esc(EP.summary)}</span>`:""
-  ].join("");
+  renderEpisodeMeta();
 
   const i=EPS.findIndex(e=>e.id===id);
   $("#bPrevEp").disabled=i<=0; $("#bNextEp").disabled=i>=EPS.length-1;
@@ -527,10 +518,29 @@ async function load(id){
   if(window.__echolabMigrated){
     window.__echolabMigrated=false;
     const box=$("#resume");
-    box.innerHTML=`<span>收藏的句子已按新的划分自动对上,不用重新收藏</span>`;
+    box.innerHTML=`<span>${t("收藏的句子已按新的划分自动对上,不用重新收藏")}</span>`;
     box.classList.remove("hidden");
     setTimeout(()=>box.classList.add("hidden"),5000);
   }
+}
+
+function renderEpisodeMeta(){
+  const ytm=/^youtube:([A-Za-z0-9_-]{11})$/.exec(EP.media||"");
+  const audioOnly=!ytm&&/\.(wav|mp3|m4a|aac|ogg|flac)(\?|$)/i.test(EP.media||"");
+  $("#stage").classList.toggle("audio-only",audioOnly);
+  $("#audNote").classList.toggle("hidden",!audioOnly);
+  if(audioOnly)$("#audNote").innerHTML=`<b>🎧 ${esc(EP.title)}</b>${t("这一期是纯音频素材")}<br>${t("右侧字幕、单词、语块功能完全一样")}`;
+
+  $("#meta").innerHTML=[
+    `<span class="stars">${"★".repeat(EP.difficulty||0)}${"☆".repeat(5-(EP.difficulty||0))}</span>`,
+    ...(EP.topics||[]).map(t=>`<span class="chip">${esc(t)}</span>`),
+    `<span class="chip">${t("语速 ")}${EP.wpm}${t(" 词/分")}</span>`,
+    `<span class="chip">${t("建议 ")}${EP.suggested_minutes}${t(" 分钟")}</span>`,
+    `<span class="chip">${fmt(EP.duration||0)}</span>`,
+    ytm?`<span class="badge">${t("YouTube 嵌入 · 未下载")}</span>`:"",
+    EP.summary?`<span>${esc(EP.summary)}</span>`:""
+  ].join("");
+
 }
 
 /* ---------- 上次听到哪 ---------- */
@@ -538,9 +548,9 @@ function offerResume(){
   const p=PROG[EP.id], box=$("#resume");
   box.classList.add("hidden");
   if(!p||!p.seg||p.seg<2||p.seg>=SEGS.length-1) return;
-  box.innerHTML=`<span>上次听到第 ${p.seg+1} 句</span>
-    <button class="btn" id="bGo">继续</button>
-    <button class="btn" id="bNo">从头</button>`;
+  box.innerHTML=`<span>${t("上次听到第 ")}${p.seg+1}${t(" 句")}</span>
+    <button class="btn" id="bGo">${t("继续")}</button>
+    <button class="btn" id="bNo">${t("从头")}</button>`;
   box.classList.remove("hidden");
   $("#bGo").onclick=()=>{box.classList.add("hidden");jump(p.seg)};
   $("#bNo").onclick=()=>box.classList.add("hidden");
@@ -570,10 +580,10 @@ function renderSubs(){
       <div class="zh ${S.mode==="en"||S.mode==="ipa"?"hidden":""}">${esc(s.zh||"")}</div>
       <div class="ipa ${S.mode==="ipa"?"":"hidden"}">${esc(s.ipa||"")}</div>
       <div class="tools">
-        <button class="tool" data-a="play">▶ 播这句</button>
-        <button class="tool" data-a="loop">🔁 循环</button>
-        <button class="tool ${fav.includes(s.id)?"on":""}" data-a="fav">${fav.includes(s.id)?"★ 已收藏":"☆ 收藏"}</button>
-        <button class="tool" data-a="copy">复制</button>
+        <button class="tool" data-a="play">${t("▶ 播这句")}</button>
+        <button class="tool" data-a="loop">${t("🔁 循环")}</button>
+        <button class="tool ${fav.includes(s.id)?"on":""}" data-a="fav">${fav.includes(s.id)?t("★ 已收藏"):t("☆ 收藏")}</button>
+        <button class="tool" data-a="copy">${t("复制")}</button>
       </div>
     </div>`).join("");
   $("#nSub").textContent=SEGS.length;
@@ -584,7 +594,7 @@ $("#subBox").addEventListener("click",e=>{
   if(a==="loop"){S.loop=true;saveS();syncButtons();jump(id);}
   else if(a==="fav"){toggleFav(id);}
   else if(a==="copy"){navigator.clipboard?.writeText(`${seg.en}\n${seg.zh}`);
-    e.target.textContent="已复制";setTimeout(()=>e.target.textContent="复制",900);}
+    e.target.textContent=t("已复制");setTimeout(()=>e.target.textContent=t("复制"),900);}
   else jump(id);
 });
 function jump(id){
@@ -632,7 +642,7 @@ function tick(){
   const i=segAt(t);
   if(i>=0&&i!==cur){cur=i;highlight(false);}
   const playing=!MP.paused;
-  $("#bPlay").textContent=playing?"⏸ 暂停":"▶ 播放";
+  $("#bPlay").textContent=playing?t("⏸ 暂停"):t("▶ 播放");
   if(playing&&Date.now()-lastSave>5000){lastSave=Date.now();saveProg();}
 }
 v.addEventListener("timeupdate",tick);
@@ -650,7 +660,7 @@ $("#bPause").onclick=()=>{S.pauseEach=!S.pauseEach;if(S.pauseEach)S.loop=false;s
 $("#bMark").onclick=()=>{S.mark=!S.mark;saveS();renderSubs();highlight(true);syncButtons()};
 $("#bFollow").onclick=()=>{S.follow=!S.follow;saveS();syncButtons();if(S.follow)highlight(true)};
 $("#rates").onclick=e=>{const r=e.target.dataset.r;if(!r)return;S.rate=parseFloat(r);saveS();MP.setRate(S.rate);syncButtons()};
-$("#modes").onclick=e=>{const m=e.target.dataset.m;if(!m)return;S.mode=m;saveS();renderSubs();highlight(true);syncButtons()};
+$("#modes").onclick=e=>{const m=e.target.closest("[data-m]")?.dataset.m;if(!m)return;S.mode=m;saveS();renderSubs();highlight(true);syncButtons()};
 function stepEp(d){
   const i=EPS.findIndex(e=>e.id===EP.id)+d;
   if(i>=0&&i<EPS.length) load(EPS[i].id);
@@ -707,21 +717,21 @@ function cardHTML(c){
   return `<div class="card" data-term="${esc(c.term)}">
     <div class="term">${esc(c.term)}
       ${c.pos?`<span class="pos">${esc(c.pos)}</span>`:""}
-      <button class="speak" data-sp="US">🔊 美</button>
-      <button class="speak" data-sp="GB">🔊 英</button>
+      <button class="speak" data-sp="US">${t("🔊 美")}</button>
+      <button class="speak" data-sp="GB">${t("🔊 英")}</button>
       <button class="speak" data-fav="1">${favT.includes(c.term)?"★":"☆"}</button>
     </div>
-    ${c.ipa?`<div class="ipa">美 /${esc(c.ipa.us||"")}/ &nbsp; 英 /${esc(c.ipa.uk||"")}/</div>`:""}
+    ${c.ipa?`<div class="ipa">${t("美 /")}${esc(c.ipa.us||"")}/ &nbsp; ${t("英 /")}${esc(c.ipa.uk||"")}/</div>`:""}
     <div class="def"><b>${esc(c.def_zh||"")}</b>${c.def_en?`<div class="en">${esc(c.def_en)}</div>`:""}</div>
     ${c.ex_en?`<div class="ex">${esc(c.ex_en)}<div class="zh">${esc(c.ex_zh||"")}</div></div>`:""}
     ${c.note?`<div class="note">${esc(c.note)}</div>`:""}
     ${(c.exam||[]).length?`<div class="tags">${c.exam.map(t=>`<span class="tag">${esc(t)}</span>`).join("")}</div>`:""}
-    ${c.quote?`<div class="quote" data-seg="${c.seg}">▶ 原句:${esc(c.quote)}</div>`:""}
+    ${c.quote?`<div class="quote" data-seg="${c.seg}">${t("▶ 原句:")}${esc(c.quote)}</div>`:""}
   </div>`;
 }
 function groupHTML(t,list){
   return `<div class="cardgroup">
-    <h3><span class="dot" style="background:var(${T_VAR[t]})"></span>${T_ZH[t]}
+    <h3><span class="dot" style="background:var(${T_VAR[t]})"></span>${EchoI18n.t(T_ZH[t])}
       <span class="n">${list.length}</span></h3>
     ${list.map(cardHTML).join("")}
   </div>`;
@@ -733,12 +743,12 @@ function renderCards(){
   $("#nChunk").textContent=chunks.length;
   // 单词只有一类,不必再套分组标题——标签上的「单词 19」已经说明了
   $("#wordBox").innerHTML=words.length?words.map(cardHTML).join("")
-    :`<div class="empty">这一期没有单词卡片。<br>去「语块」看看,
-       口语素材的价值多半在那边。</div>`;
+    :`<div class="empty">${t("这一期没有单词卡片。")}<br>${t("去「语块」看看,")}
+       ${t("口语素材的价值多半在那边。")}</div>`;
   $("#chunkBox").innerHTML=chunks.length
     ?CHUNK_ORDER.map(t=>[t,chunks.filter(c=>c.type===t)])
        .filter(([,list])=>list.length).map(([t,list])=>groupHTML(t,list)).join("")
-    :`<div class="empty">这一期没有语块卡片。</div>`;
+    :`<div class="empty">${t("这一期没有语块卡片。")}</div>`;
 }
 function speak(text,accent){
   try{
@@ -776,12 +786,12 @@ function renderFav(){
   const cards=CARDS.filter(c=>b.terms.includes(c.term));
   $("#nFav").textContent=segs.length+cards.length;
   $("#favBox").innerHTML=(segs.length||cards.length)?`
-    ${segs.length?`<div class="cardgroup"><h3>收藏的句子 <span class="n">${segs.length}</span></h3>
+    ${segs.length?`<div class="cardgroup"><h3>${t("收藏的句子 ")}<span class="n">${segs.length}</span></h3>
       ${segs.map(s=>`<div class="sub" data-id="${s.id}"><div class="en">${esc(s.en)}</div>
         <div class="zh">${esc(s.zh||"")}</div></div>`).join("")}</div>`:""}
-    ${cards.length?`<div class="cardgroup"><h3>收藏的词条 <span class="n">${cards.length}</span></h3>
+    ${cards.length?`<div class="cardgroup"><h3>${t("收藏的词条 ")}<span class="n">${cards.length}</span></h3>
       ${cards.map(cardHTML).join("")}</div>`:""}`
-    :`<div class="empty">还没有收藏。<br>点字幕里的「☆ 收藏」,或单词/语块卡片上的 ☆。</div>`;
+    :`<div class="empty">${t("还没有收藏。")}<br>${t("点字幕里的「☆ 收藏」,或单词/语块卡片上的 ☆。")}</div>`;
   $("#favBox").querySelectorAll(".sub").forEach(el=>el.onclick=()=>{
     document.querySelector('.tab[data-t="sub"]').click();jump(+el.dataset.id);
   });
@@ -789,6 +799,7 @@ function renderFav(){
 
 boot();
 if(window.speechSynthesis)speechSynthesis.getVoices();
+window.addEventListener("echolab:language",()=>{if(EP){renderEpisodeMeta();renderSubs();renderCards();renderFav();highlight(false);offerResume();syncButtons();tick();}});
 </script>
 </body>
 </html>

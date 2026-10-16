@@ -189,16 +189,16 @@ def setup_page(host=None):
           "t.style.cssText='position:fixed;z-index:2147483647;left:50%;top:24px;"
           "transform:translateX(-50%);background:#161b24;color:#e8edf5;padding:12px 18px;"
           "border-radius:10px;font:14px system-ui;box-shadow:0 6px 24px rgba(0,0,0,.35)';"
-          "t.textContent='EchoLab 接收中…';document.body.appendChild(t);"
+          "t.textContent='EchoLab: receiving / 接收中…';document.body.appendChild(t);"
           "var go=function(m){t.textContent=m;setTimeout(function(){t.remove()},2600)};"
           "var u='http://HOSTVAL/api/add?token=TOKENVAL&url='+"
           "encodeURIComponent(location.href)+'&title='+encodeURIComponent(document.title);"
           "fetch(u).then(function(r){return r.json()}).then(function(j){go('EchoLab:'+j.message)})"
-          ".catch(function(){go('连不上 EchoLab,请确认 serve.py 正在运行');"
+          ".catch(function(){go('Cannot reach EchoLab. Start serve.py / 请启动服务');"
           "window.open(u,'_blank')})})()"
           ).replace("HOSTVAL", host).replace("TOKENVAL", token)
     import html as H
-    return f"""<!doctype html><meta charset=utf-8><title>EchoLab · 安装书签</title>
+    return f"""<!doctype html><meta charset=utf-8><title>EchoLab · Bookmark setup</title>
 <style>body{{font:15px/1.7 system-ui,-apple-system,"PingFang SC","Microsoft YaHei";
 max-width:720px;margin:48px auto;padding:0 20px;color:#1a2130}}
 a.bm{{display:inline-block;background:#1f3864;color:#fff;padding:11px 22px;border-radius:9px;
@@ -206,32 +206,37 @@ text-decoration:none;font-weight:600;font-size:16px}}
 code,pre{{background:#f0f2f6;padding:2px 6px;border-radius:5px;font-size:13px}}
 pre{{padding:12px;overflow-x:auto;white-space:pre-wrap;word-break:break-all}}
 h2{{margin-top:34px;font-size:17px}} .tip{{color:#5b6779;font-size:13.5px}}</style>
-<h1>把这个拖到书签栏</h1>
-<p>拖一次就好。以后在 YouTube / TikTok / 抖音的视频页面点它一下,链接就进了本地队列。</p>
-<p><a class="bm" href="{H.escape(js, quote=True)}">📥 存进 EchoLab</a></p>
-<p class="tip">拖不动的话:右键书签栏 → 添加网页 → 名称随便填,网址粘贴下面这段。</p>
+<select data-language aria-label="Interface language" style="font:inherit;max-width:110px;padding:5px;border-radius:7px;background:var(--panel,#fff);color:inherit;border:1px solid var(--line,#ccc)"><option value="en">English</option><option value="zh-CN">中文</option></select><script src="/i18n.js"></script><h1><span data-i18n="把这个拖到书签栏">把这个拖到书签栏</span></h1>
+<p><span data-i18n="拖一次就好。以后在 YouTube / TikTok / 抖音的视频页面点它一下,链接就进了本地队列。">拖一次就好。以后在 YouTube / TikTok / 抖音的视频页面点它一下,链接就进了本地队列。</span></p>
+<p><a class="bm" href="{H.escape(js, quote=True)}"><span data-i18n="📥 存进 EchoLab">📥 存进 EchoLab</span></a></p>
+<p class="tip"><span data-i18n="拖不动的话:右键书签栏 → 添加网页 → 名称随便填,网址粘贴下面这段。">拖不动的话:右键书签栏 → 添加网页 → 名称随便填,网址粘贴下面这段。</span></p>
 <pre>{H.escape(js)}</pre>
-<h2>然后怎么处理</h2>
-<p>什么都不用再开。这个窗口已经在守着队列,书签点进去的视频会自动解析,
-解析完刷新素材库就能看到。</p>
-<p class="tip">只想提供网页、暂时不解析时,用 <code>python serve.py --no-worker</code>。</p>
-<h2>几个前提</h2>
+<h2><span data-i18n="然后怎么处理">然后怎么处理</span></h2>
+<p><span data-i18n="什么都不用再开。这个窗口已经在守着队列,书签点进去的视频会自动解析,
+解析完刷新素材库就能看到。">什么都不用再开。这个窗口已经在守着队列,书签点进去的视频会自动解析,
+解析完刷新素材库就能看到。</span></p>
+<p class="tip"><span data-i18n="只想提供网页、暂时不解析时,用 ">只想提供网页、暂时不解析时,用 </span><code>python serve.py --no-worker</code><span data-i18n="。">。</span></p>
+<h2><span data-i18n="几个前提">几个前提</span></h2>
 <ul>
-<li>这个服务(<code>python serve.py</code>)得开着,书签才有地方送。</li>
-<li>浏览器建议用 Chrome 或 Edge。它们把 <code>localhost</code> 当作可信来源,
-HTTPS 页面也能访问本地服务;Safari 会拦,拦了会自动改为新开标签页兜底。</li>
-<li>YouTube 走取字幕 + 嵌入播放,不下载;TikTok / 抖音需要你自行安装
-<code>yt-dlp</code>,并自行判断是否符合对应平台的条款。</li>
+<li><span data-i18n="这个服务(">这个服务(</span><code>python serve.py</code><span data-i18n=")得开着,书签才有地方送。">)得开着,书签才有地方送。</span></li>
+<li><span data-i18n="浏览器建议用 Chrome 或 Edge。它们把 ">浏览器建议用 Chrome 或 Edge。它们把 </span><code>localhost</code><span data-i18n=" 当作可信来源,
+HTTPS 页面也能访问本地服务;Safari 会拦,拦了会自动改为新开标签页兜底。"> 当作可信来源,
+HTTPS 页面也能访问本地服务;Safari 会拦,拦了会自动改为新开标签页兜底。</span></li>
+<li><span data-i18n="YouTube 走取字幕 + 嵌入播放,不下载;TikTok / 抖音需要你自行安装
+">YouTube 走取字幕 + 嵌入播放,不下载;TikTok / 抖音需要你自行安装
+</span><code>yt-dlp</code><span data-i18n=",并自行判断是否符合对应平台的条款。">,并自行判断是否符合对应平台的条款。</span></li>
 </ul>
-<h2>手机 / 平板怎么打开</h2>
-<p><b>不能用 localhost</b> —— 在手机上 localhost 指的是手机自己。要用这台电脑的
-局域网地址:</p>
+<h2><span data-i18n="手机 / 平板怎么打开">手机 / 平板怎么打开</span></h2>
+<p><b><span data-i18n="不能用 localhost">不能用 localhost</span></b><span data-i18n=" —— 在手机上 localhost 指的是手机自己。要用这台电脑的
+局域网地址:"> —— 在手机上 localhost 指的是手机自己。要用这台电脑的
+局域网地址:</span></p>
 <pre>{"".join(f"http://{ip}:{PORT}/player.html" + chr(10) for ip in lan_ips()) or "（暂时探测不到局域网地址）"}</pre>
-<p class="tip">连不上的话多半是 Windows 防火墙拦了入站。用管理员身份打开 PowerShell 执行一次:</p>
+<p class="tip"><span data-i18n="连不上的话多半是 Windows 防火墙拦了入站。用管理员身份打开 PowerShell 执行一次:">连不上的话多半是 Windows 防火墙拦了入站。用管理员身份打开 PowerShell 执行一次:</span></p>
 <pre>New-NetFirewallRule -DisplayName "EchoLab" -Direction Inbound -LocalPort {PORT} -Protocol TCP -Action Allow</pre>
-<p class="tip">另外确认手机和电脑连的是同一个 Wi-Fi,且路由器没有开「AP 隔离 / 访客网络」——
-那个功能会禁止同网设备互访。</p>
-<p class="tip">令牌只在你本机,换了机器要重新拖一次书签。</p>"""
+<p class="tip"><span data-i18n="另外确认手机和电脑连的是同一个 Wi-Fi,且路由器没有开「AP 隔离 / 访客网络」——
+那个功能会禁止同网设备互访。">另外确认手机和电脑连的是同一个 Wi-Fi,且路由器没有开「AP 隔离 / 访客网络」——
+那个功能会禁止同网设备互访。</span></p>
+<p class="tip"><span data-i18n="令牌只在你本机,换了机器要重新拖一次书签。">令牌只在你本机,换了机器要重新拖一次书签。</span></p>"""
 
 
 def doctor():
