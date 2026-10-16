@@ -13,7 +13,7 @@
 付费墙、登录态或 DRM。各站点的服务条款与内容版权由使用者自行负责;
 若要把成果做成对外产品,内容授权必须先于技术方案解决。
 """
-import os, re, json, html, mimetypes, pathlib, shutil, subprocess, urllib.parse
+import os, re, json, html, mimetypes, pathlib, shutil, subprocess, urllib.parse, hashlib
 import xml.etree.ElementTree as ET
 import requests
 
@@ -40,7 +40,13 @@ def _session():
 def safe_name(name, fallback="media"):
     name = urllib.parse.unquote(name or "")
     name = re.sub(r"[\\/:*?\"<>|\r\n\t]+", "_", name).strip(" ._")
-    return (name or fallback)[:80]
+    name = name or fallback
+    if name.split(".")[0].upper() in {"CON", "PRN", "AUX", "NUL", *(f"COM{i}" for i in range(1, 10)), *(f"LPT{i}" for i in range(1, 10))}:
+        name = "_" + name
+    if len(name) > 80 or len(name.encode("utf-8")) > 180:
+        digest = hashlib.sha256(name.encode("utf-8")).hexdigest()[:8]
+        name = name[:70].encode("utf-8")[:160].decode("utf-8", errors="ignore").rstrip(" .") + "-" + digest
+    return name
 
 
 def _ext_from(url, content_type=""):
@@ -119,22 +125,36 @@ def parse_rss(xml_text):
         for ch in item:
             t = ch.tag.split("}")[-1]
             if t == "title":
-                title = (ch.text or "").strip()
+                title = "".join(ch.itertext()).strip()
             elif t == "enclosure":
                 url = ch.attrib.get("url", "")
                 mtype = ch.attrib.get("type", "")
-                length = int(ch.attrib.get("length") or 0)
+                try:
+                    length = max(0, int(ch.attrib.get("length") or 0))
+                except ValueError:
+                    length = 0
             elif t == "link" and ch.attrib.get("rel") == "enclosure":
                 url = ch.attrib.get("href", "")
                 mtype = ch.attrib.get("type", "")
             elif t in ("pubDate", "published", "updated"):
                 pub = (ch.text or "").strip()
         if url:
-            eps.append({"title": title or "(无标题)", "url": url,
+            eps.append({"title": title or "(Untitled)", "url": url,
                         "length": length, "type": mtype, "published": pub})
     if not eps:
         raise IngestError("这个订阅源里没有找到可下载的音频条目")
     return eps
+
+
+def fetch_rss(url, session=None):
+    """Parse raw XML bytes so its encoding declaration is respected."""
+    s = session or _session()
+    try:
+        with s.get(url, timeout=TIMEOUT) as response:
+            response.raise_for_status()
+            return parse_rss(response.content)
+    except requests.RequestException as exc:
+        raise IngestError(f"Could not read podcast feed: {exc}") from exc
 
 
 # ---------------------------------------------------------------- 3. 页面解析
@@ -249,7 +269,7 @@ def ingest(url, out_dir="downloads", prefer_audio=True, rss_index=0, verbose=Tru
     # 2) RSS
     if "xml" in ctype or url.rstrip("/").endswith((".xml", "/rss", "/feed")):
         log("识别为订阅源,解析条目")
-        eps = parse_rss(s.get(url, timeout=TIMEOUT).text)
+        eps = fetch_rss(url, s)
         log(f"共 {len(eps)} 期,取第 {rss_index+1} 期:{eps[rss_index]['title']}")
         return download(eps[rss_index]["url"], out_dir,
                         name=safe_name(eps[rss_index]["title"]), session=s)

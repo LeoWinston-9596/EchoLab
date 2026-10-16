@@ -13,7 +13,7 @@ import argparse, pathlib, sys, urllib.parse
 
 ROOT = pathlib.Path(__file__).resolve().parent
 sys.path.insert(0, str(ROOT))
-from teco.ingest import (parse_rss, extract_from_page, looks_like_media,
+from teco.ingest import (fetch_rss, extract_from_page, looks_like_media,
                          head_content_type, download, download_hls, via_ytdlp,
                          has_ytdlp, _session, IngestError, TIMEOUT)
 
@@ -54,7 +54,7 @@ def analyze(url, verbose=True):
         return "direct", [{"url": final, "source": f"响应头 {ctype}"}]
 
     if "xml" in ctype or url.rstrip("/").endswith((".xml", "/rss", "/feed")):
-        return "rss", parse_rss(s.get(url, timeout=TIMEOUT).text)
+        return "rss", fetch_rss(url, s)
 
     try:
         page = s.get(url, timeout=TIMEOUT).text
