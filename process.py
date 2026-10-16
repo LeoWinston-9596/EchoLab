@@ -116,6 +116,9 @@ def main():
 
     yt_id = None          # 非空表示走 YouTube 嵌入模式:不下载、不跑语音识别
     src = None
+    if args.url:
+        from teco.platforms import canonical_url
+        args.url = canonical_url(args.url) or args.url
     if args.url and not args.force:
         # 重复投递很常见(书签点两次、同一个视频换了个链接形式),
         # 重跑一遍既费时间又费钱,直接跳过并告诉用户它在哪
@@ -200,6 +203,14 @@ def main():
             print(f"      {len(words)} 个词 · 时长 {info['duration']}s"
                   f" · {'人工字幕' if cap_meta.get('kind')=='manual' else '自动字幕'}"
                   f"({cap_meta.get('format','')})")
+            last = words[-1]["end"] if words else 0
+            dur = info["duration"] or 0
+            # 字幕末端远超视频时长 = 多半抓到了播放列表里别的视频。
+            # 存进去播放器 80% 的句子点了会跳空,宁可现在失败让人重投一条干净链接。
+            if dur and last > dur * 1.25 + 15:
+                sys.exit(
+                    f"  字幕末端 {last:.0f}s,视频只有 {dur:.0f}s,"
+                    f"对不上。请去掉网址里的 list= 参数后重试。")
     else:
         print("环境自检:")
         print(env_report())
@@ -233,7 +244,9 @@ def main():
         print("[5/6] 抽取知识点卡片")
         raw_cards, mat_notes = cards_mod.extract_cards(llm, segs)
         wl = cards_mod.load_wordlists(ROOT / "wordlists")
-        kept, dropped = cards_mod.verify_and_enrich(raw_cards, segs, wl)
+        # 把 llm 递进去:espeak-ng 没装的机器上,音标本会静默全空,
+        # 而兜底逻辑就是为这种情况写的,不传等于白写
+        kept, dropped = cards_mod.verify_and_enrich(raw_cards, segs, wl, llm=llm)
         cover = len({c["seg"] for c in kept})
         nwords = sum(len(s["words"]) for s in segs)
         print(f"      {len(kept)} 张卡片 · 覆盖 {cover}/{len(segs)} 段"
@@ -305,7 +318,8 @@ def main():
     print(f"  {llm.cost_report()}")
     if low:
         print(f"  提示:{len(low)} 个词识别把握较低,已列在 data.json 的 review 里供校对")
-    print("\n  运行 python3 serve.py 打开播放器\n")
+    if not os.environ.get("ECHOLAB_INSIDE"):
+        print("\n  运行 python serve.py 打开播放器\n")
 
 
 if __name__ == "__main__":

@@ -31,7 +31,7 @@ button{font:inherit;color:inherit;background:none;border:none;cursor:pointer;
 
 /* ================= 桌面:左右两栏 ================= */
 .app{display:grid;grid-template-columns:minmax(0,1.15fr) minmax(0,1fr);
-  gap:14px;height:100dvh;height:100vh;padding:14px;
+  gap:14px;height:100vh;height:100dvh;padding:14px;
   padding-top:max(14px,env(safe-area-inset-top))}
 .col{display:flex;flex-direction:column;gap:11px;min-height:0}
 
@@ -157,8 +157,12 @@ kbd{background:var(--panel2);border:1px solid var(--line);border-bottom-width:2p
 
 /* ================= 手机 / 窄屏 ================= */
 @media(max-width:900px){
+  /* 两条 height 的顺序不能反。iOS Safari 的 100vh 是【不含地址栏和底部
+     工具栏】的大视口,比实际看得见的区域高一截;整个 .app 一旦比屏幕高,
+     排在最下面的播放控制就被顶到可视区之外,手机上只剩视频和字幕。
+     所以 100vh 只作老浏览器的兜底,支持 dvh 的必须由 dvh 覆盖掉它。 */
   .app{display:flex;flex-direction:column;grid-template-columns:none;
-    height:100dvh;height:100vh;gap:7px;
+    height:100vh;height:100dvh;gap:7px;
     padding:max(6px,env(safe-area-inset-top)) 8px calc(6px + env(safe-area-inset-bottom))}
   .stage{border-radius:10px}
   .topbar{gap:6px}
@@ -421,10 +425,40 @@ function findSpan(term,words,maxGap=4){
 
 /* ---------- 加载 ---------- */
 function qs(n){return new URLSearchParams(location.search).get(n)}
+async function migrateFav(){
+  // 重新合并语义群会改段号。映射表在 library/segmap.json,
+  // 启动时按 stamp 迁一次,迁过的记下不再动。表不存在就当没有。
+  try{
+    const r=await fetch("library/segmap.json?"+Date.now());
+    if(!r.ok) return;
+    const m=await r.json();
+    if(!m||!m.stamp||!m.maps) return;
+    if(store.get("echolab.segmap","")===m.stamp) return;
+    store.set("echolab.fav.bak",{fav:FAV,prog:PROG});
+    let moved=0;
+    for(const [ep,map] of Object.entries(m.maps)){
+      const f=FAV[ep];
+      if(f&&Array.isArray(f.segIds)&&f.segIds.length){
+        const seen=new Set();
+        f.segIds=f.segIds.map(id=>map[String(id)]??id).filter(id=>{
+          if(seen.has(id)) return false; seen.add(id); return true;
+        });
+        moved++;
+      }
+      if(PROG[ep]&&PROG[ep].seg!=null&&map[String(PROG[ep].seg)]!=null)
+        PROG[ep].seg=map[String(PROG[ep].seg)];
+    }
+    store.set("echolab.fav",FAV);
+    store.set("echolab.progress",PROG);
+    store.set("echolab.segmap",m.stamp);
+    if(moved) window.__echolabMigrated=true;
+  }catch(e){}
+}
 async function boot(){
   let idx;
   try{ idx=await (await fetch("library/index.json?"+Date.now())).json(); }
   catch(e){ return showEmpty(`读不到素材库。请用 <code>python serve.py</code> 启动,不要直接双击打开本文件。`); }
+  await migrateFav();
   // 与素材库页保持同一顺序(最新在前),否则「上一个/下一个」和你看到的列表相反
   EPS=(idx.episodes||[]).slice().sort((a,b)=>(b.created||"").localeCompare(a.created||""));
   if(!EPS.length) return showEmpty(`素材库还是空的。<br>先跑 <code>python demo.py</code> 看演示。`);
@@ -490,6 +524,13 @@ async function load(id){
   }
 
   offerResume();
+  if(window.__echolabMigrated){
+    window.__echolabMigrated=false;
+    const box=$("#resume");
+    box.innerHTML=`<span>收藏的句子已按新的划分自动对上,不用重新收藏</span>`;
+    box.classList.remove("hidden");
+    setTimeout(()=>box.classList.add("hidden"),5000);
+  }
 }
 
 /* ---------- 上次听到哪 ---------- */

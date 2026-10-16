@@ -55,15 +55,18 @@ def cmd_ipa(path):
 # ------------------------------------------------------------------ 重新合并语义群
 
 def remerge(d):
-    """按当前的合并规则重切一遍这一期。返回 (新段数, 原段数)。
+    """按当前的合并规则重切一遍这一期。返回 (新段数, 原段数, {老段号: 新段号})。
 
     只做合并、不重新切分——切分要调模型。合并纯粹是本机计算,
     所以改了「多短算太短」的标准之后,老素材可以免费跟上。
+
+    段号映射必须交出去:收藏的句子和「上次听到哪」是按段号存在浏览器里的,
+    只有把这张表落到 library/segmap.json,播放器才能自己迁移过去。
     """
     from teco.segment import merge_short
     segs = d.get("segments") or []
     if len(segs) < 2:
-        return len(segs), len(segs)
+        return len(segs), len(segs), {}
 
     # data.json 里没有全局词下标,用每段的 w0 还原出来
     by_i, ok = {}, True
@@ -75,12 +78,12 @@ def remerge(d):
         for k, w in enumerate(s["words"]):
             by_i[w0 + k] = w
     if not ok:
-        return len(segs), len(segs)
+        return len(segs), len(segs), {}
 
     merged = merge_short([{"s": s["w0"], "e": s["w1"], "zh": s.get("zh") or ""}
                           for s in segs], by_i)
     if len(merged) == len(segs):
-        return len(segs), len(segs)
+        return len(segs), len(segs), {}
 
     remap, out = {}, []
     for sid, m in enumerate(merged):
@@ -99,28 +102,43 @@ def remerge(d):
         })
     d["segments"] = out
     d["n_segments"] = len(out)
-    for c in d.get("cards", []):        # 词卡指向的段号跟着挪,否则「▶ 原句」会跳错
+    by_new = {s["id"]: s for s in out}
+
+    def follow(c):
+        """词卡指向的段号跟着挪,否则「▶ 原句」会跳错;quote 也得一起换。
+
+        quote 就是所指段落的正文(见 teco/cards.py),只挪段号不换 quote,
+        卡片上显示的还是合并前那半句,和点进去听到的对不上。
+        """
         if c.get("seg") in remap:
             c["seg"] = remap[c["seg"]]
+        s = by_new.get(c.get("seg"))
+        if s and c.get("quote"):
+            c["quote"] = s["en"]
+
+    for c in d.get("cards", []):
+        follow(c)
     for dc in (d.get("review") or {}).get("dropped_cards") or []:
-        if isinstance(dc, dict) and dc.get("seg") in remap:
-            dc["seg"] = remap[dc["seg"]]
-    return len(out), len(segs)
+        if isinstance(dc, dict):        # 丢弃的卡片也一并刷新,免得两份数据说法不一
+            follow(dc)
+    return len(out), len(segs), remap
 
 
 def cmd_merge(dry):
     from teco.segment import MIN_WORDS, MIN_SECS
     print(f"重新合并过短的语义群(标准:少于 {MIN_WORDS} 词 或 短于 {MIN_SECS} 秒)\n")
     total_before = total_after = touched = 0
+    maps = {}                            # {期id: {老段号: 新段号}},最后一起写 segmap
     for ep_id, d in lib.episodes():
         before_short = _short_count(d)
-        new, old = remerge(d)
+        new, old, remap = remerge(d)
         if new == old:
             print(f"  · {ep_id[:44]:46} {old:4} 段,无需改动")
             continue
         touched += 1
         total_before += old
         total_after += new
+        maps[ep_id] = remap
         after_short = _short_count(d)
         print(f"  ✓ {ep_id[:44]:46} {old:4} → {new:4} 段 · "
               f"过短段 {before_short} → {after_short}")
@@ -137,7 +155,9 @@ def cmd_merge(dry):
     if touched:
         n = lib.update_index()
         print(f"  改动了 {touched} 期,{total_before} → {total_after} 段,索引已重建({n} 期)")
-        print("  注意:段号变了,之前收藏的句子和播放进度会对不上,重新收藏即可。\n")
+        pairs = lib.write_segmap(maps)
+        print(f"  段号映射已写入 library/segmap.json({pairs} 条)")
+        print("  收藏的句子和播放进度会在下次打开播放器时自动迁移,不用重新收藏。\n")
     else:
         print("  全库都不需要改动。\n")
 

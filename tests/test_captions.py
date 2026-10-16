@@ -2,7 +2,7 @@
 """YouTube 自动字幕滚动重播的去重测试:不联网,用构造的 json3 与词序列。"""
 import sys, pathlib
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent))
-from teco.captions import parse_json3, drop_rolling_repeats, parse_vtt
+from teco.captions import parse_json3, drop_rolling_repeats, parse_vtt, yt_cmd
 
 ok = fail = 0
 def check(name, cond, extra=""):
@@ -78,6 +78,12 @@ this is a test
 vw = parse_vtt(VTT)
 check("vtt 仍能解析", words(vw) == "Hello there friends this is a test".split(),
       str(words(vw)))
+
+print("\n【yt-dlp 命令一律带 --no-playlist】")
+cmd = yt_cmd("yt-dlp", "--skip-download", "https://youtu.be/x")
+check("开关在可执行文件之后、其它参数之前",
+      cmd[:3] == ["yt-dlp", "--no-playlist", "--skip-download"], str(cmd))
+check("即使调用方忘了写,结果里也只有一次", cmd.count("--no-playlist") == 1)
 
 print(f"\n通过 {ok} / {ok+fail}")
 sys.exit(1 if fail else 0)

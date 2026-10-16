@@ -57,6 +57,22 @@ input[type=search]{background:var(--panel);border:1px solid var(--line);border-r
 .empty{text-align:center;color:var(--dim2);padding:64px 20px;line-height:2}
 code{background:var(--panel2);padding:2px 7px;border-radius:5px;font-size:13px}
 .count{color:var(--dim2);font-size:12.5px}
+.queue{background:var(--panel);border:1px solid var(--line);border-radius:var(--r);
+ padding:12px 14px;margin-bottom:16px;display:none}
+.queue.on{display:block}
+.queue h2{margin:0 0 8px;font-size:13.5px;font-weight:600;color:var(--dim)}
+.qitem{display:flex;align-items:flex-start;gap:10px;padding:7px 0;border-top:1px solid var(--line);
+ font-size:13.5px}
+.qitem:first-of-type{border-top:none}
+.qitem .st{flex:0 0 64px;font-size:12px;color:var(--dim2);padding-top:1px}
+.qitem .st.run{color:var(--active)}
+.qitem .st.bad{color:#f87171}
+.qitem .tx{flex:1;min-width:0}
+.qitem .tx b{font-weight:600}
+.qitem .tx .u{color:var(--dim2);font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.qitem .act{display:flex;gap:6px;flex-shrink:0}
+.qitem .act button{background:var(--panel2);border:1px solid var(--line);border-radius:8px;
+ padding:4px 10px;font-size:12px;cursor:pointer;color:inherit}
 </style>
 </head>
 <body>
@@ -65,7 +81,8 @@ code{background:var(--panel2);padding:2px 7px;border-radius:5px;font-size:13px}
     <h1>EchoLab<span>·</span>素材库</h1>
     <span class="count" id="count"></span>
   </header>
-  <p class="sub">点任意一期开始学。进度会自动记住。</p>
+  <p class="sub">点任意一期开始学。进度会自动记住。刷视频时点书签即可入队,会自动解析。</p>
+  <div class="queue" id="queue"></div>
   <div class="bar" id="filters">
     <input type="search" id="q" placeholder="搜标题、主题…">
     <button class="chip on" data-f="all">全部</button>
@@ -164,22 +181,67 @@ function render(){
   $("#grid").innerHTML=list.length?list.map(card).join("")
     :`<div class="empty" style="grid-column:1/-1">没有匹配的内容。</div>`;
 }
-(async()=>{
-  let idx;
-  try{ idx=await (await fetch("library/index.json?"+Date.now())).json(); }
-  catch(e){
+let lastCur="";
+function qStatus(it, cur){
+  if(cur && it.id===cur.id) return ["正在解析","run"];
+  return ({"待处理":["排队中",""],"处理中":["正在解析","run"],"已完成":["已完成",""],
+           "失败":["失败","bad"],"已跳过":["已跳过",""]})[it.status] || [it.status,""];
+}
+function renderQueue(data){
+  const box=$("#queue");
+  if(!data){box.classList.remove("on");return;}
+  const items=(data.items||[]).filter(i=>i.status!=="已完成" && i.status!=="已跳过");
+  const cur=data.current;
+  const curId=(cur&&cur.id)||"";
+  if(lastCur && curId!==lastCur) reloadLibrary();
+  lastCur=curId;
+  if(!items.length && !cur){box.classList.remove("on");return;}
+  box.classList.add("on");
+  box.innerHTML=`<h2>${data.watching?"队列会自动解析":"队列(解析未启动,请用启动脚本或 python serve.py)"}</h2>`+
+    items.map(it=>{
+      const [lab,cls]=qStatus(it,cur);
+      const retry=it.status==="失败"
+        ? `<div class="act"><button data-a="retry" data-id="${esc(it.id)}">重试</button>
+            <button data-a="dismiss" data-id="${esc(it.id)}">去掉</button></div>` : "";
+      const title=it.title||it.url||"";
+      return `<div class="qitem">
+        <span class="st ${cls}">${lab}</span>
+        <div class="tx"><b>${esc(title.slice(0,80))}</b>
+          <div class="u">${esc(it.error||it.plan||it.url||"")}</div></div>${retry}</div>`;
+    }).join("");
+  box.querySelectorAll("button").forEach(b=>b.onclick=async()=>{
+    const a=b.dataset.a,id=b.dataset.id;
+    await fetch(`/api/${a}?id=${encodeURIComponent(id)}`,{credentials:"same-origin"});
+    pollQueue();
+  });
+}
+async function pollQueue(){
+  try{
+    const d=await (await fetch("/api/status?"+Date.now(),{credentials:"same-origin"})).json();
+    renderQueue(d);
+  }catch(e){}
+}
+async function reloadLibrary(){
+  try{
+    const idx=await (await fetch("library/index.json?"+Date.now())).json();
+    EPS=(idx.episodes||[]).slice();
+    if(!EPS.length){
+      $("#grid").innerHTML=`<div class="empty" style="grid-column:1/-1">
+        素材库还是空的。用书签存一条视频,解析完会出现在这里。</div>`;
+      $("#count").textContent="";
+      $("#authors").innerHTML="";
+      return;
+    }
+    renderAuthors(); render();
+  }catch(e){
     $("#grid").innerHTML=`<div class="empty" style="grid-column:1/-1">
       读不到素材库。请用 <code>python serve.py</code> 启动,不要直接双击打开本文件。</div>`;
-    return;
   }
-  EPS=(idx.episodes||[]).slice();
-  if(!EPS.length){
-    $("#grid").innerHTML=`<div class="empty" style="grid-column:1/-1">
-      素材库还是空的。<br>先跑 <code>python demo.py</code> 看演示,<br>
-      或用 <code>python process.py --url &lt;网址&gt;</code> 添加内容。</div>`;
-    return;
-  }
-  renderAuthors(); render();
+}
+(async()=>{
+  await reloadLibrary();
+  await pollQueue();
+  setInterval(pollQueue, 4000);
 })();
 $("#sort").onchange=e=>{sortBy=e.target.value;render()};
 $("#q").oninput=e=>{kw=e.target.value.trim().toLowerCase();render()};

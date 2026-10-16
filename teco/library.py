@@ -15,6 +15,47 @@ INDEX_FIELDS = ("id", "title", "author", "media", "poster", "duration", "topics"
                 "n_segments", "n_cards", "created", "source_url", "source_key")
 
 
+SEGMAP = LIB / "segmap.json"
+
+
+def write_segmap(maps):
+    """记下「老段号 → 新段号」,供播放器迁移收藏与播放进度。
+
+    重新合并语义群会改变段号,而收藏的句子和「上次听到哪」是按段号存在
+    浏览器 localStorage 里的。不留这张表,用户就只能重新收藏一遍。
+
+    表是累积的。第二次合并时,浏览器里存的仍是【最初】那套段号,
+    所以要把两轮映射串起来(原始 → 上一轮 → 这一轮),而不是直接覆盖。
+    """
+    prev_all = {}
+    if SEGMAP.exists():
+        try:
+            prev_all = (json.loads(SEGMAP.read_text(encoding="utf-8")) or {}).get("maps") or {}
+        except Exception:
+            prev_all = {}                # 表坏了就当没有,大不了这次迁移不了
+
+    out = {ep: {str(k): int(v) for k, v in m.items()} for ep, m in prev_all.items()}
+    for ep, m in maps.items():
+        if not m:
+            continue
+        prev = out.get(ep)
+        if prev:
+            # remerge 给每个老段号都记了一条,所以 prev 覆盖齐全,直接串接
+            out[ep] = {k: int(m.get(int(v), int(v))) for k, v in prev.items()}
+        else:
+            out[ep] = {str(k): int(v) for k, v in m.items()}
+
+    import time
+    LIB.mkdir(parents=True, exist_ok=True)
+    tmp = SEGMAP.with_name("segmap.json.tmp")
+    tmp.write_text(json.dumps(
+        {"stamp": time.strftime("%Y-%m-%dT%H:%M:%S"),
+         "note": "老段号→新段号。播放器启动时据此迁移收藏与进度,迁移完记下 stamp 不再重复。",
+         "maps": out}, ensure_ascii=False, indent=1), encoding="utf-8")
+    tmp.replace(SEGMAP)
+    return sum(len(m) for m in out.values())
+
+
 def episodes():
     """遍历 library/,产出 (期数目录名, data.json 内容)。"""
     if not LIB.exists():

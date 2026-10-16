@@ -2,7 +2,7 @@
 """来源判重的离线测试:同一个视频的各种链接形态必须归成同一个标识。"""
 import sys, pathlib
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent))
-from teco.platforms import source_key, detect
+from teco.platforms import source_key, detect, canonical_url
 
 ok = fail = 0
 def check(name, cond, extra=""):
@@ -37,6 +37,18 @@ check("保留真正有意义的参数",
 check("参数顺序不影响结果",
       source_key("https://x.com/v?a=1&b=2") == source_key("https://x.com/v?b=2&a=1"))
 check("空网址返回空", source_key("") == "" and source_key(None) == "")
+
+print("\n【存库用的干净链接】")
+check("剥掉 list 和起始时间",
+      canonical_url("https://www.youtube.com/watch?v=pPdAmlUcx7s&list=PLxxxx&t=90")
+      == "https://www.youtube.com/watch?v=pPdAmlUcx7s")
+check("youtu.be 也收成 watch?v=",
+      canonical_url("https://youtu.be/pPdAmlUcx7s?si=abc")
+      == "https://www.youtube.com/watch?v=pPdAmlUcx7s")
+check("shorts 同样",
+      canonical_url("https://www.youtube.com/shorts/pPdAmlUcx7s")
+      == "https://www.youtube.com/watch?v=pPdAmlUcx7s")
+check("空网址返回空", canonical_url("") == "" and canonical_url(None) == "")
 
 print("\n【平台识别没被改坏】")
 check("youtube", detect("https://youtu.be/pPdAmlUcx7s")[0] == "youtube")

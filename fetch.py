@@ -24,7 +24,7 @@ def human(n):
 
 def youtube_report(url):
     """YouTube 专用诊断:这个视频到底有哪些字幕、yt-dlp 说了什么。"""
-    from teco.captions import has_ytdlp, _run
+    from teco.captions import has_ytdlp, _run, yt_cmd
     exe = has_ytdlp()
     if not exe:
         print("  未安装 yt-dlp。YouTube 取字幕需要它:pip install -U yt-dlp")
@@ -32,7 +32,7 @@ def youtube_report(url):
     r = _run([exe, "--version"], timeout=30)
     print(f"  yt-dlp 版本:{(r.stdout or '').strip() or '未知'}")
     print("  查询可用字幕中…\n")
-    r = _run([exe, "--list-subs", "--skip-download", "--no-warnings", url], timeout=120)
+    r = _run(yt_cmd(exe, "--list-subs", "--skip-download", "--no-warnings", url), timeout=120)
     out = (r.stdout or "").strip()
     print("\n".join("  " + l for l in out.split("\n")[:40]) if out else "  (无输出)")
     if r.returncode != 0 and r.stderr:

@@ -12,6 +12,15 @@
 import json, re, subprocess, shutil, tempfile, pathlib, glob, os
 
 
+def yt_cmd(exe, *args):
+    """所有取 YouTube 字幕/元信息的调用都带 --no-playlist。
+
+    分享链接经常带着 &list=。不加这个开关,yt-dlp 会按播放列表把每一集的
+    字幕都抓回来,时长却只记第一集——库里就出现过 18 分钟视频配 112 分钟字幕。
+    """
+    return [exe, "--no-playlist", *args]
+
+
 def has_ytdlp():
     return shutil.which("yt-dlp") or shutil.which("youtube-dl")
 
@@ -187,9 +196,12 @@ def fetch_uploader(url, timeout=90):
     exe = has_ytdlp()
     if not exe:
         return ""
+    from .platforms import canonical_url
+    url = canonical_url(url) or url
     try:
-        r = _run([exe, "--skip-download", "--no-warnings", "--no-playlist",
-                  "--print", "%(uploader,channel,uploader_id)s", url], timeout=timeout)
+        r = _run(yt_cmd(exe, "--skip-download", "--no-warnings",
+                        "--print", "%(uploader,channel,uploader_id)s", url),
+                 timeout=timeout)
     except Exception:
         return ""
     name = ((r.stdout or "").strip().splitlines() or [""])[0].strip()
@@ -208,13 +220,16 @@ def fetch_youtube(url, langs=("en", "en-US", "en-GB"), verbose=True):
             "    pip install -U yt-dlp\n"
             "这里只取字幕,不下载视频(--skip-download)。")
 
+    from .platforms import canonical_url
+    url = canonical_url(url) or url
+
     errors = []
     with tempfile.TemporaryDirectory() as td:
         base = str(pathlib.Path(td) / "cap")
         meta = {}
         try:
-            r = _run([exe, "--skip-download", "--no-warnings", "--print",
-                      "%(title)s\n%(duration)s\n%(uploader)s", url], timeout=90)
+            r = _run(yt_cmd(exe, "--skip-download", "--no-warnings", "--print",
+                            "%(title)s\n%(duration)s\n%(uploader)s", url), timeout=90)
             parts = (r.stdout or "").strip().split("\n")
             if len(parts) >= 2 and parts[0]:
                 meta["title"] = parts[0].strip()
@@ -240,8 +255,8 @@ def fetch_youtube(url, langs=("en", "en-US", "en-GB"), verbose=True):
             label = f"{'人工' if kind=='manual' else '自动'}字幕 · {fmt}"
             if verbose:
                 print(f"  · 尝试{label}")
-            r = _run([exe, flag, "--skip-download", "--sub-format", fmt,
-                      "--sub-langs", langspec, "-o", base, "--no-warnings", url])
+            r = _run(yt_cmd(exe, flag, "--skip-download", "--sub-format", fmt,
+                            "--sub-langs", langspec, "-o", base, "--no-warnings", url))
             if r.returncode != 0 and r.stderr:
                 errors.append((label, r.stderr.strip()[-500:]))
             files = sorted(glob.glob(f"{base}*.{fmt}"))
@@ -263,7 +278,8 @@ def fetch_youtube(url, langs=("en", "en-US", "en-GB"), verbose=True):
             print("  · 都没拿到,查一下这个视频到底有哪些字幕")
         listing = ""
         try:
-            r = _run([exe, "--list-subs", "--skip-download", "--no-warnings", url], timeout=90)
+            r = _run(yt_cmd(exe, "--list-subs", "--skip-download", "--no-warnings", url),
+                     timeout=90)
             listing = (r.stdout or "").strip()[-1200:]
             if r.returncode != 0 and r.stderr:
                 errors.append(("--list-subs", r.stderr.strip()[-500:]))

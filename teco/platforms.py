@@ -61,6 +61,30 @@ JUNK_PARAMS = {
 }
 
 
+def canonical_url(url):
+    """存进队列和 data.json 的干净链接。
+
+    分享链接常带着 &list= 播放列表、&t= 起始时间、si= 分享追踪。
+    这些不影响「是哪个视频」,但原样交给 yt-dlp 取字幕时,&list= 会让它
+    把整个播放列表的字幕都抓回来——库里就出现过一期 18 分钟视频配了
+    112 分钟字幕。YouTube 一律收成 watch?v=ID;其它网站只剥追踪参数。
+    """
+    if not url:
+        return ""
+    vid = youtube_id(url)
+    if vid:
+        return f"https://www.youtube.com/watch?v={vid}"
+    p = urllib.parse.urlsplit(url.strip())
+    if not p.scheme or not p.netloc:
+        return url.strip()
+    host = (p.hostname or "").lower()
+    keep = [(k, v) for k, v in urllib.parse.parse_qsl(p.query, keep_blank_values=True)
+            if k.lower() not in JUNK_PARAMS]
+    q = urllib.parse.urlencode(keep)
+    path = p.path or "/"
+    return urllib.parse.urlunsplit((p.scheme, host, path, q, ""))
+
+
 def source_key(url):
     """把一个网址归一成「这是哪个视频」的稳定标识,用于判重。
 

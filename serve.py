@@ -52,6 +52,9 @@ class Handler(http.server.SimpleHTTPRequestHandler):
 
     def end_headers(self):
         self.send_header("Cache-Control", "no-store")
+        # 素材库页的「重试」按钮靠这颗 cookie 鉴权,书签跨站 fetch 不会带上它
+        self.send_header("Set-Cookie",
+                         f"echolab={inbox.get_token()}; Path=/; SameSite=Lax")
         super().end_headers()
 
     # ---------- 书签栏一键:接收网址 ----------
@@ -71,21 +74,49 @@ class Handler(http.server.SimpleHTTPRequestHandler):
         self.send_header("Access-Control-Allow-Headers", "*")
         self.end_headers()
 
+    def _authed(self, q):
+        tok = inbox.get_token()
+        if (q.get("token") or [""])[0] == tok:
+            return True
+        for part in (self.headers.get("Cookie") or "").split(";"):
+            if "=" in part:
+                k, v = part.strip().split("=", 1)
+                if k == "echolab" and v == tok:
+                    return True
+        return False
+
     def _api(self, parsed):
         q = urllib.parse.parse_qs(parsed.query)
-        token = (q.get("token") or [""])[0]
-        if token != inbox.get_token():
-            self._json({"ok": False, "message": "令牌不对,请到 /setup 重新拖一次书签"}, 403)
+        path = parsed.path
+        # 队列状态给素材库页轮询,只读,不需要令牌
+        if path == "/api/status":
+            from teco import runner
+            self._json(runner.status())
             return True
-        if parsed.path == "/api/add":
+        if path == "/api/queue":
+            self._json({"ok": True, "items": inbox.list_all()})
+            return True
+        if path in ("/api/retry", "/api/dismiss"):
+            if not self._authed(q):
+                self._json({"ok": False, "message": "未授权,请刷新页面再试"}, 403)
+                return True
+            qid = (q.get("id") or [""])[0]
+            if path == "/api/retry":
+                ok = inbox.requeue_one(qid)
+                self._json({"ok": ok, "message": "已重新排队" if ok else "找不到这条"})
+            else:
+                inbox.dismiss(qid)
+                self._json({"ok": True})
+            return True
+        if path == "/api/add":
+            if not self._authed(q):
+                self._json({"ok": False, "message": "令牌不对,请到 /setup 重新拖一次书签"}, 403)
+                return True
             url = (q.get("url") or [""])[0]
             if not url.startswith("http"):
                 self._json({"ok": False, "message": "这不是一个网址"}, 400)
                 return True
             self._json(inbox.add(url, (q.get("title") or [""])[0]))
-            return True
-        if parsed.path == "/api/queue":
-            self._json({"ok": True, "items": inbox.list_all()})
             return True
         return False
 
@@ -181,10 +212,9 @@ h2{{margin-top:34px;font-size:17px}} .tip{{color:#5b6779;font-size:13.5px}}</sty
 <p class="tip">拖不动的话:右键书签栏 → 添加网页 → 名称随便填,网址粘贴下面这段。</p>
 <pre>{H.escape(js)}</pre>
 <h2>然后怎么处理</h2>
-<p>队列里的东西不会自动开跑——处理一个视频要几十秒到几分钟,
-所以点书签只负责入队,你想跑的时候再开:</p>
-<pre>python worker.py            # 处理完队列里所有待处理的
-python worker.py --watch    # 一直守着,来一个处理一个</pre>
+<p>什么都不用再开。这个窗口已经在守着队列,书签点进去的视频会自动解析,
+解析完刷新素材库就能看到。</p>
+<p class="tip">只想提供网页、暂时不解析时,用 <code>python serve.py --no-worker</code>。</p>
 <h2>几个前提</h2>
 <ul>
 <li>这个服务(<code>python serve.py</code>)得开着,书签才有地方送。</li>
@@ -204,17 +234,51 @@ HTTPS 页面也能访问本地服务;Safari 会拦,拦了会自动改为新开�
 <p class="tip">令牌只在你本机,换了机器要重新拖一次书签。</p>"""
 
 
+def doctor():
+    """启动时把缺什么说清楚,并把卡住的索引/队列领回来。"""
+    from teco.tools import report as env_report
+    from teco import library as lib
+    print("环境:")
+    print(env_report())
+    envf = ROOT / ".env"
+    print("  .env      : " + ("已找到" if envf.exists()
+          else "没有。复制 .env.example 填入 API key,否则解析会失败"))
+    try:
+        n = lib.update_index()
+        print(f"  素材库    : {n} 期")
+    except Exception as e:
+        print(f"  素材库    : 索引重建失败({e})")
+
+
 class Server(socketserver.ThreadingTCPServer):
     allow_reuse_address = True
     daemon_threads = True
 
 
 if __name__ == "__main__":
-    if not (ROOT / "library" / "index.json").exists():
-        print("素材库还是空的。先运行 python3 demo.py 生成一期演示内容。\n")
-    url = f"http://localhost:{PORT}/player.html"
-    print(f"\n  素材库       http://localhost:{PORT}/library.html")
-    print(f"  播放器       {url}")
+    import argparse
+    from types import SimpleNamespace
+    ap = argparse.ArgumentParser(description="EchoLab 本地服务(网页 + 自动解析队列)")
+    ap.add_argument("--no-worker", action="store_true",
+                    help="只提供网页,不自动解析队列")
+    ap.add_argument("--llm", default=None)
+    ap.add_argument("--asr-model", default=None)
+    ap.add_argument("--no-cards", action="store_true")
+    ap.add_argument("--interval", type=int, default=2)
+    ap.add_argument("--port", type=int, default=PORT)
+    args = ap.parse_args()
+    PORT = args.port
+
+    doctor()
+    if not args.no_worker:
+        from teco import runner
+        runner.start_background(SimpleNamespace(
+            llm=args.llm, asr_model=args.asr_model,
+            no_cards=args.no_cards, interval=args.interval))
+
+    url = f"http://localhost:{PORT}/library.html"
+    print(f"\n  素材库       {url}")
+    print(f"  播放器       http://localhost:{PORT}/player.html")
     print(f"  安装书签     http://localhost:{PORT}/setup")
     ips = lan_ips()
     if ips:

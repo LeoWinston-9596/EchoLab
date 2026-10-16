@@ -29,3 +29,7 @@ downloads/
 
 # 收件箱队列与本机令牌
 .queue/
+
+# CI 工作流在 runner 里现生成的临时依赖清单
+ci-requirements.txt
+
