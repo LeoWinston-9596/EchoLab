@@ -52,7 +52,7 @@ python serve.py
 
 The first local-ASR run downloads the selected model (default: `small.en`). Generated episodes live in `library/<episode-id>/`, with `data.json`, media and a thumbnail where applicable.
 
-YouTube prefers existing English captions and embedded playback. If captions fail, processing falls back to media download and ASR; `--no-fallback` stops instead, and `--force-download` explicitly chooses ASR. Other inputs include media URLs, RSS/Atom enclosures, HTML media sources, HLS and separately installed `yt-dlp`.
+YouTube prefers existing English captions and embedded playback. If captions fail, processing falls back to media download and ASR; `--no-fallback` stops instead, and `--force-download` explicitly chooses ASR. Other inputs include media URLs, RSS/Atom enclosures, HTML media sources, HLS and separately installed `yt-dlp`. English HTML `<track>` captions are used before ASR when available; cue-level times are interpolated within a sentence. Broken tracks fall back to ASR.
 
 To queue a link, run the server, open [bookmark setup](http://localhost:8777/setup), and drag the bookmark to your browser's bookmarks bar. Click it on a video page; the server processes the queue automatically. `python worker.py --watch` is an alternative standalone worker; do not start a second processor unnecessarily.
 

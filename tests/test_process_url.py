@@ -23,18 +23,29 @@ class QuietHandler(http.server.SimpleHTTPRequestHandler):
 
 class URLPipelineTest(unittest.TestCase):
     def test_download_process_save_and_deduplicate(self):
+        for mode in ("direct", "html-captions", "html-broken-captions"):
+            with self.subTest(mode=mode):
+                self.run_pipeline(mode)
+
+    def run_pipeline(self, mode):
         with tempfile.TemporaryDirectory() as tmp:
             root = pathlib.Path(tmp)
             (root / "library").mkdir()
             payload = b"fixture media: no decoder is needed for this test"
             (root / "sample.mp3").write_bytes(payload)
+            (root / "page.html").write_text('<video src="sample.mp3">'
+                '<track src="en.vtt" kind="captions" srclang="en"></video>', encoding="utf-8")
+            (root / "en.vtt").write_text("WEBVTT\n\n00:00.000 --> 00:04.000\n"
+                "These English captions replace speech recognition for this episode.\n"
+                if mode == "html-captions" else "Malformed captions", encoding="utf-8")
             server = http.server.ThreadingHTTPServer(
                 ("127.0.0.1", 0), functools.partial(QuietHandler, directory=tmp))
             thread = threading.Thread(target=server.serve_forever, daemon=True)
             thread.start()
             self.addCleanup(server.server_close)
             self.addCleanup(server.shutdown)
-            url = f"http://127.0.0.1:{server.server_port}/sample.mp3"
+            source = "sample.mp3" if mode == "direct" else "page.html"
+            url = f"http://127.0.0.1:{server.server_port}/{source}"
             words = [{"i": i, "w": w, "start": i*.4, "end": (i+1)*.4, "p": .99}
                      for i, w in enumerate("This test downloads media and saves a learning episode".split())]
             segs = [{"id": 0, "en": " ".join(w["w"] for w in words),
@@ -58,13 +69,18 @@ class URLPipelineTest(unittest.TestCase):
                 process.main()
                 data = json.loads((root/"library/integration/data.json").read_text(encoding="utf-8"))
                 self.assertEqual(data["source_url"], url)
+                self.assertEqual(data["transcript_source"], "html-track" if mode == "html-captions" else "asr")
                 self.assertEqual(data["segments"], segs)
                 self.assertEqual(data["author"], "Fixture author")
                 self.assertEqual((root/"library/integration/media.mp3").read_bytes(), payload)
                 index = json.loads((root/"library/index.json").read_text(encoding="utf-8"))
                 self.assertEqual(index["episodes"][0]["id"], "integration")
                 process.main()
-                transcribe.assert_called_once()
+                if mode == "html-captions":
+                    transcribe.assert_not_called()
+                    self.assertTrue(data["caption_track"]["url"].endswith("/en.vtt"))
+                else:
+                    transcribe.assert_called_once()
 
 
 if __name__ == "__main__":

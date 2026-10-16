@@ -25,8 +25,10 @@ Each item is delivered in a separate commit with its regression tests.
 - [x] Verify the existing one-command URL-to-learning-material path. `tests/test_process_url.py` exercises real local HTTP download, saved media/JSON/index and duplicate avoidance with isolated storage and fake models. Fixed non-default ports being removed from input URLs.
 - [x] Validate real podcast feeds and handle encoding and very long titles. See [dated live results](podcast-validation.md) and `tests/test_rss.py`.
 - [x] Select podcast episodes by fuzzy title as well as numeric index. Exact, partial, token and typo matches are supported; ambiguous matches list indexes instead of guessing.
-- [ ] Read English HTML `<track>` captions and bypass ASR when usable.
+- [x] Read English HTML `<track>` captions and bypass ASR when usable. Tracks are matched to the selected media element; VTT/SRT cue timing is interpolated within each cue. Missing/broken tracks fall back to ASR. `--force-download` forces ASR even when HTML captions exist.
 - [ ] Resume interrupted large HTTP downloads safely.
+
+Caption timing is approximate within each cue, and episode duration uses the last caption boundary on this path. The original English cues are retained; translation still uses the configured LLM. `data.json.transcript_source` and `caption_track` identify the source and timing precision.
 
 ## 6. Usage
 

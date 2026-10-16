@@ -116,6 +116,8 @@ def main():
 
     yt_id = None          # 非空表示走 YouTube 嵌入模式:不下载、不跑语音识别
     src = None
+    ingest_meta = {}
+    web_words, web_caption_meta = None, {}
     if args.url:
         from teco.platforms import canonical_url
         args.url = canonical_url(args.url) or args.url
@@ -139,10 +141,13 @@ def main():
             print(f"从网址获取素材({kind}):{args.url}")
             try:
                 src = pathlib.Path(ingest(args.url, ROOT / "downloads",
-                                          rss_index=args.rss_index)).resolve()
+                                          rss_index=args.rss_index, metadata=ingest_meta)).resolve()
             except IngestError as e:
                 sys.exit(f"  {e}")
             print(f"  已下载:{src.name}\n")
+            if not args.force_download and ingest_meta.get("caption_tracks"):
+                from teco.subtitles import fetch_track_captions
+                web_words, web_caption_meta = fetch_track_captions(ingest_meta["caption_tracks"])
     elif args.video:
         src = pathlib.Path(args.video).expanduser().resolve()
     else:
@@ -211,6 +216,10 @@ def main():
                 sys.exit(
                     f"  字幕末端 {last:.0f}s,视频只有 {dur:.0f}s,"
                     f"对不上。请去掉网址里的 list= 参数后重试。")
+    elif web_words:
+        words = web_words
+        info = {"language": "en", "duration": words[-1]["end"]}
+        print(f"Using HTML English captions ({len(words)} words); skipping ASR.")
     else:
         print("环境自检:")
         print(env_report())
@@ -287,7 +296,7 @@ def main():
         author = fetch_uploader(args.url)
     from teco.platforms import source_key
 
-    low = asr.low_confidence_words(words) if not yt_id else []
+    low = asr.low_confidence_words(words) if not (yt_id or web_words) else []
     data = {
         "id": ep_id, "title": title,
         "media": media_ref, "poster": poster,
@@ -295,6 +304,8 @@ def main():
         "created": time.strftime("%Y-%m-%d"),
         "source_url": args.url or "",
         "rss_selector": str(args.rss_index),
+        "transcript_source": "youtube-captions" if yt_id else "html-track" if web_words else "asr",
+        "caption_track": web_caption_meta,
         "source_key": source_key(args.url) if args.url else "",
         "author": author,
         "n_segments": len(segs), "n_cards": len(kept),

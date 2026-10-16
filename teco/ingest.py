@@ -295,7 +295,7 @@ def via_ytdlp(url, out_dir, audio_only=True):
 
 # ---------------------------------------------------------------- 调度
 
-def ingest(url, out_dir="downloads", prefer_audio=True, rss_index=0, verbose=True):
+def ingest(url, out_dir="downloads", prefer_audio=True, rss_index=0, verbose=True, metadata=None):
     """主入口:给一个网址,返回本地媒体文件路径。"""
     s = _session()
     log = (lambda m: print(f"  {m}")) if verbose else (lambda m: None)
@@ -322,17 +322,24 @@ def ingest(url, out_dir="downloads", prefer_audio=True, rss_index=0, verbose=Tru
     # 3) 页面解析
     log("按网页解析,查找页面内的媒体地址")
     try:
-        page = s.get(url, timeout=TIMEOUT).text
+        response = s.get(url, timeout=TIMEOUT)
+        response.raise_for_status()
+        page = response.text
     except requests.RequestException as e:
         raise IngestError(f"打不开这个网址:{e}")
-    cands = extract_from_page(page, url)
+    cands = extract_from_page(page, response.url)
     if cands:
         log(f"找到 {len(cands)} 个候选,优先尝试:{cands[0]['source']}")
     for c in cands[:4]:
         try:
             if ".m3u8" in c["url"].lower():
-                return download_hls(c["url"], out_dir)
-            return download(c["url"], out_dir, session=s)
+                result = download_hls(c["url"], out_dir)
+            else:
+                result = download(c["url"], out_dir, session=s)
+            if metadata is not None:
+                from .subtitles import extract_tracks
+                metadata["caption_tracks"] = extract_tracks(page, response.url, c["url"])
+            return result
         except Exception as e:
             log(f"候选失败({c['source']}):{e}")
 
