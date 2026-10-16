@@ -48,7 +48,7 @@ def make_poster(video, out_png, at=3.0):
         return ""
 
 
-def find_existing(url):
+def find_existing(url, rss_selector="0"):
     """这个网址是不是已经解析过了。YouTube 按视频 ID 比对,其余按网址原文。"""
     if not url or not LIB.exists():
         return None
@@ -62,7 +62,7 @@ def find_existing(url):
             j = json.loads(f.read_text(encoding="utf-8"))
         except Exception:
             continue
-        if j.get("source_url") == url:
+        if j.get("source_url") == url and str(j.get("rss_selector", "0")) == str(rss_selector):
             return j
         if vid and j.get("media") == f"youtube:{vid}":
             return j
@@ -86,7 +86,7 @@ def main():
     ap = argparse.ArgumentParser(description="把英文视频转成精读级学习材料")
     ap.add_argument("video", nargs="?", help="视频或音频文件路径")
     ap.add_argument("--url", help="改从网址获取素材(先用 fetch.py 分析更稳妥)")
-    ap.add_argument("--rss-index", type=int, default=0, help="订阅源里第几期")
+    ap.add_argument("--rss-index", default="0", help="Zero-based podcast index or fuzzy title")
     ap.add_argument("--force-download", action="store_true",
                     help="YouTube 也强制下载并跑语音识别(默认取字幕更快)")
     ap.add_argument("--force", action="store_true",
@@ -122,7 +122,7 @@ def main():
     if args.url and not args.force:
         # 重复投递很常见(书签点两次、同一个视频换了个链接形式),
         # 重跑一遍既费时间又费钱,直接跳过并告诉用户它在哪
-        dup = find_existing(args.url)
+        dup = find_existing(args.url, args.rss_index)
         if dup:
             print(f"\n这个视频已经解析过了:《{dup.get('title')}》")
             print(f"  素材库位置:library/{dup.get('id')}/")
@@ -294,6 +294,7 @@ def main():
         "duration": info["duration"], "language": info["language"],
         "created": time.strftime("%Y-%m-%d"),
         "source_url": args.url or "",
+        "rss_selector": str(args.rss_index),
         "source_key": source_key(args.url) if args.url else "",
         "author": author,
         "n_segments": len(segs), "n_cards": len(kept),

@@ -15,7 +15,7 @@ ROOT = pathlib.Path(__file__).resolve().parent
 sys.path.insert(0, str(ROOT))
 from teco.ingest import (fetch_rss, extract_from_page, looks_like_media,
                          head_content_type, download, download_hls, via_ytdlp,
-                         has_ytdlp, _session, IngestError, TIMEOUT)
+                         has_ytdlp, _session, IngestError, TIMEOUT, select_rss)
 
 
 def human(n):
@@ -68,7 +68,7 @@ def main():
     ap = argparse.ArgumentParser(description="解析网址里的媒体")
     ap.add_argument("url")
     ap.add_argument("--download", action="store_true", help="确认后下载")
-    ap.add_argument("--index", type=int, default=0, help="订阅源里第几期(从 0 开始)")
+    ap.add_argument("--index", default="0", help="Zero-based episode index or fuzzy title")
     ap.add_argument("--out", default="downloads", help="下载到哪个目录")
     ap.add_argument("--video", action="store_true", help="yt-dlp 兜底时保留画面(默认只要音频)")
     a = ap.parse_args()
@@ -93,13 +93,18 @@ def main():
         print(f"  类型:媒体直链({items[0]['source']})")
         print(f"  地址:{items[0]['url']}")
     elif kind == "rss":
+        try:
+            selected_index, selected_episode = select_rss(items, a.index)
+        except IngestError as e:
+            sys.exit(f"  {e}")
         print(f"  类型:播客订阅源,共 {len(items)} 期(播客的 enclosure 本就供下载)\n")
         for i, e in enumerate(items[:12]):
-            mark = "→" if i == a.index else " "
+            mark = "→" if i == selected_index else " "
             print(f"  {mark} [{i}] {e['title'][:46]:48s} {human(e['length'])}  {e['published'][:16]}")
         if len(items) > 12:
             print(f"     …… 还有 {len(items)-12} 期")
-        print(f"\n  用 --index N 选择,默认第 {a.index} 期")
+        print(f"\n  Selected [{selected_index}]: {selected_episode['title']}")
+        print('  Use --index N or --index "title fragment" to select an episode.')
     elif kind == "page":
         print(f"  类型:网页,找到 {len(items)} 个候选地址(按可靠度排序)\n")
         for i, c in enumerate(items[:8]):
@@ -121,7 +126,7 @@ def main():
         if kind == "direct":
             p = download(items[0]["url"], a.out)
         elif kind == "rss":
-            ep = items[a.index]
+            _, ep = select_rss(items, a.index)
             from teco.ingest import safe_name
             p = download(ep["url"], a.out, name=safe_name(ep["title"]))
         elif kind == "page":

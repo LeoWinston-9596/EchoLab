@@ -157,6 +157,50 @@ def fetch_rss(url, session=None):
         raise IngestError(f"Could not read podcast feed: {exc}") from exc
 
 
+def select_rss(episodes, selector=0):
+    """Select a zero-based index or an unambiguous, case-insensitive title match."""
+    import difflib
+    import unicodedata
+
+    value = str(selector).strip()
+    if re.fullmatch(r"-?\d+", value):
+        index = int(value)
+        if not 0 <= index < len(episodes):
+            raise IngestError(f"Episode index {index} is outside 0..{len(episodes)-1}")
+        return index, episodes[index]
+    if not value:
+        raise IngestError("Episode title must not be empty")
+
+    def normal(text):
+        return " ".join(re.findall(r"\w+", unicodedata.normalize("NFKC", text).casefold()))
+
+    query = normal(value)
+    if not query:
+        raise IngestError("Episode title must contain letters or digits")
+    titles = [normal(ep["title"]) for ep in episodes]
+    matches = [i for i, title in enumerate(titles) if title == query]
+    if not matches:
+        matches = [i for i, title in enumerate(titles) if query in title]
+    if not matches:
+        matches = [i for i, title in enumerate(titles)
+                   if all(word in title.split() for word in query.split())]
+    if len(matches) == 1:
+        i = matches[0]
+        return i, episodes[i]
+    if not matches:
+        ranked = sorted(((difflib.SequenceMatcher(None, query, title).ratio(), i)
+                         for i, title in enumerate(titles)), reverse=True)
+        if ranked and ranked[0][0] >= .65:
+            if len(ranked) == 1 or ranked[0][0] - ranked[1][0] >= .10:
+                i = ranked[0][1]
+                return i, episodes[i]
+            matches = [i for score, i in ranked if ranked[0][0] - score < .10]
+    if matches:
+        choices = "; ".join(f"[{i}] {episodes[i]['title']}" for i in matches[:8])
+        raise IngestError(f"Ambiguous episode title {value!r}. Choose an index: {choices}")
+    raise IngestError(f"No episode title matched {value!r}")
+
+
 # ---------------------------------------------------------------- 3. 页面解析
 
 _OG = re.compile(r'<meta[^>]+(?:property|name)=["\'](og:video(?::secure_url|:url)?|'
@@ -270,9 +314,10 @@ def ingest(url, out_dir="downloads", prefer_audio=True, rss_index=0, verbose=Tru
     if "xml" in ctype or url.rstrip("/").endswith((".xml", "/rss", "/feed")):
         log("识别为订阅源,解析条目")
         eps = fetch_rss(url, s)
-        log(f"共 {len(eps)} 期,取第 {rss_index+1} 期:{eps[rss_index]['title']}")
-        return download(eps[rss_index]["url"], out_dir,
-                        name=safe_name(eps[rss_index]["title"]), session=s)
+        index, episode = select_rss(eps, rss_index)
+        log(f"Selected [{index}] of {len(eps)} episodes: {episode['title']}")
+        return download(episode["url"], out_dir,
+                        name=safe_name(episode["title"]), session=s)
 
     # 3) 页面解析
     log("按网页解析,查找页面内的媒体地址")

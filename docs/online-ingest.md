@@ -24,7 +24,7 @@ Each item is delivered in a separate commit with its regression tests.
 
 - [x] Verify the existing one-command URL-to-learning-material path. `tests/test_process_url.py` exercises real local HTTP download, saved media/JSON/index and duplicate avoidance with isolated storage and fake models. Fixed non-default ports being removed from input URLs.
 - [x] Validate real podcast feeds and handle encoding and very long titles. See [dated live results](podcast-validation.md) and `tests/test_rss.py`.
-- [ ] Select podcast episodes by fuzzy title as well as numeric index.
+- [x] Select podcast episodes by fuzzy title as well as numeric index. Exact, partial, token and typo matches are supported; ambiguous matches list indexes instead of guessing.
 - [ ] Read English HTML `<track>` captions and bypass ASR when usable.
 - [ ] Resume interrupted large HTTP downloads safely.
 
@@ -33,5 +33,7 @@ Each item is delivered in a separate commit with its regression tests.
 ```bash
 python fetch.py URL
 python fetch.py FEED --index 2 --download
+python fetch.py FEED --index "coffee conversation" --download
+python process.py --url FEED --rss-index "coffee conversation"
 python process.py --url URL --title "Episode one"
 ```

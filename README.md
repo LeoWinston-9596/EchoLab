@@ -45,6 +45,7 @@ Copy `.env.example` to `.env` and configure `DEEPSEEK_API_KEY`, or `MOONSHOT_API
 ```bash
 python process.py "path/to/video.mp4" --title "Ordering coffee"
 python fetch.py "https://example.com/video"  # Inspect before downloading
+python process.py --url "https://example.com/feed.xml" --rss-index "episode title"
 python process.py --url "https://www.youtube.com/watch?v=VIDEO_ID"
 python serve.py
 ```

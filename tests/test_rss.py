@@ -4,7 +4,7 @@ import sys
 import unittest
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1]))
-from teco.ingest import IngestError, parse_rss, safe_name
+from teco.ingest import IngestError, parse_rss, safe_name, select_rss
 
 
 class FeedTest(unittest.TestCase):
@@ -39,6 +39,16 @@ class FeedTest(unittest.TestCase):
         for xml in (b"not xml", b"<rss><channel/></rss>"):
             with self.assertRaises(IngestError):
                 parse_rss(xml)
+
+    def test_episode_selection(self):
+        eps = [{"title": title} for title in
+               ("Episode 1: Coffee & conversation", "Moving house", "Coffee shops", "Café culture")]
+        for query, expected in (("0", 0), ("MOVING HOUSE", 1), ("conversation", 0),
+                                ("house moving", 1), ("Movign house", 1), ("Ｃａｆé", 3)):
+            self.assertEqual(select_rss(eps, query)[0], expected)
+        for query in ("coffee", "-1", "99", "", "unrelated astrophysics", "!!!"):
+            with self.subTest(query=query), self.assertRaises(IngestError):
+                select_rss(eps, query)
 
 
 if __name__ == "__main__":
