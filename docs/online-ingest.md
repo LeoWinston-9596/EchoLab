@@ -26,9 +26,11 @@ Each item is delivered in a separate commit with its regression tests.
 - [x] Validate real podcast feeds and handle encoding and very long titles. See [dated live results](podcast-validation.md) and `tests/test_rss.py`.
 - [x] Select podcast episodes by fuzzy title as well as numeric index. Exact, partial, token and typo matches are supported; ambiguous matches list indexes instead of guessing.
 - [x] Read English HTML `<track>` captions and bypass ASR when usable. Tracks are matched to the selected media element; VTT/SRT cue timing is interpolated within each cue. Missing/broken tracks fall back to ASR. `--force-download` forces ASR even when HTML captions exist.
-- [ ] Resume interrupted large HTTP downloads safely.
+- [x] Resume interrupted large HTTP downloads safely. Retry the same command: validated HTTP partials use Range + If-Range, restart if the source changes or ignores Range, and publish atomically. `tests/test_download.py` uses a deliberately interrupted local server.
 
 Caption timing is approximate within each cue, and episode duration uses the last caption boundary on this path. The original English cues are retained; translation still uses the configured LLM. `data.json.transcript_source` and `caption_track` identify the source and timing precision.
+
+Direct HTTP downloads retain hidden `.download-*.part` and `.json` files in the output directory after interruption. A strong ETag or Last-Modified is required to reuse those bytes. Without one, retry starts safely from zero. HLS and yt-dlp retain their own downloader behaviour; this resume implementation applies to the built-in HTTP downloader.
 
 ## 6. Usage
 

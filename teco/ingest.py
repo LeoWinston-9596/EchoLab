@@ -65,31 +65,112 @@ def looks_like_media(url):
 # ---------------------------------------------------------------- 1. 直链
 
 def download(url, out_dir, name=None, session=None, on_progress=None):
-    """流式下载,带体积上限与进度回调。返回落盘路径。"""
+    """Atomically publish HTTP media; retain validated partials for a later retry.
+
+    Resume uses a strong ETag or Last-Modified plus If-Range. Without a validator
+    we restart rather than risk joining bytes from different resource versions.
+    """
     s = session or _session()
     out_dir = pathlib.Path(out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
-    with s.get(url, stream=True, timeout=TIMEOUT, allow_redirects=True) as r:
-        r.raise_for_status()
-        ctype = r.headers.get("Content-Type", "")
-        total = int(r.headers.get("Content-Length") or 0)
-        if total > MAX_BYTES:
-            raise IngestError(f"文件过大({total/1e6:.0f} MB),超过 {MAX_BYTES/1e6:.0f} MB 上限")
-        base = name or safe_name(pathlib.Path(urllib.parse.urlparse(url).path).stem)
-        dest = out_dir / (base + _ext_from(url, ctype))
-        done = 0
-        with open(dest, "wb") as f:
-            for chunk in r.iter_content(1 << 16):
-                if not chunk:
+    key = hashlib.sha256(url.encode("utf-8")).hexdigest()[:24]
+    partial = out_dir / f".download-{key}.part"
+    state_file = out_dir / f".download-{key}.json"
+    base = safe_name(name or pathlib.Path(urllib.parse.urlparse(url).path).stem)
+
+    def clear():
+        partial.unlink(missing_ok=True)
+        state_file.unlink(missing_ok=True)
+
+    def validator(headers):
+        etag = headers.get("ETag", "")
+        if etag and not etag.startswith("W/"):
+            return "ETag", etag
+        modified = headers.get("Last-Modified", "")
+        return ("Last-Modified", modified) if modified else ("", "")
+
+    def finish(content_type):
+        dest = out_dir / (base + _ext_from(url, content_type))
+        partial.replace(dest)
+        state_file.unlink(missing_ok=True)
+        return dest
+
+    for attempt in range(2):
+        state = {}
+        try:
+            state = json.loads(state_file.read_text(encoding="utf-8"))
+            if not isinstance(state, dict):
+                state = {}
+        except (OSError, ValueError):
+            pass
+        offset = partial.stat().st_size if partial.exists() else 0
+        if (not offset or offset > MAX_BYTES or state.get("url") != url
+                or not state.get("validator") or state.get("validator_header") not in ("ETag", "Last-Modified")):
+            clear()
+            offset, state = 0, {}
+        headers = {"Accept-Encoding": "identity"}
+        if offset:
+            headers.update({"Range": f"bytes={offset}-", "If-Range": state["validator"]})
+        try:
+            with s.get(url, stream=True, timeout=TIMEOUT, allow_redirects=True, headers=headers) as r:
+                same_version = bool(state) and r.headers.get(state["validator_header"]) == state["validator"]
+                if r.status_code == 416:
+                    match = re.fullmatch(r"bytes \*/(\d+)", r.headers.get("Content-Range", ""))
+                    if offset and match and int(match[1]) == offset and same_version:
+                        return finish(state.get("content_type", ""))
+                    clear()
                     continue
-                done += len(chunk)
-                if done > MAX_BYTES:
-                    f.close(); dest.unlink(missing_ok=True)
-                    raise IngestError("文件超过体积上限,已中止下载")
-                f.write(chunk)
-                if on_progress and total:
-                    on_progress(done, total)
-    return dest
+                r.raise_for_status()
+                if r.status_code not in (200, 206):
+                    raise IngestError(f"Unexpected HTTP status {r.status_code}")
+                if r.headers.get("Content-Encoding", "identity").lower() not in ("identity", ""):
+                    raise IngestError("Server did not honour identity encoding; cannot safely resume")
+                content_type = r.headers.get("Content-Type", "")
+                try:
+                    length = int(r.headers.get("Content-Length") or 0)
+                    if length < 0:
+                        raise ValueError()
+                except ValueError as exc:
+                    raise IngestError("Invalid Content-Length") from exc
+                expected_end = None
+                if r.status_code == 206:
+                    match = re.fullmatch(r"bytes (\d+)-(\d+)/(\d+)", r.headers.get("Content-Range", ""))
+                    if (not match or int(match[1]) != offset
+                            or not int(match[1]) <= int(match[2]) < int(match[3])
+                            or (offset and not same_version)
+                            or (length and length != int(match[2])-int(match[1])+1)):
+                        clear()
+                        continue
+                    expected_end, total = int(match[2])+1, int(match[3])
+                else:
+                    # The resource changed, or the server ignored Range. Start over.
+                    offset = 0
+                    total = length
+                if total > MAX_BYTES:
+                    clear()
+                    raise IngestError(f"Media exceeds the {MAX_BYTES//(1024*1024)} MB limit")
+                header, value = validator(r.headers)
+                state_file.write_text(json.dumps({"url": url, "validator_header": header,
+                    "validator": value, "content_type": content_type}), encoding="utf-8")
+                done = offset
+                with partial.open("ab" if offset else "wb") as output:
+                    for chunk in r.iter_content(1 << 16):
+                        if not chunk:
+                            continue
+                        done += len(chunk)
+                        if done > MAX_BYTES or (total and done > total):
+                            output.close()
+                            clear()
+                            raise IngestError("Media exceeds the declared size or configured limit")
+                        output.write(chunk)
+                        if on_progress and total:
+                            on_progress(done, total)
+                if not done or (total and done != total) or (expected_end and done != expected_end):
+                    raise IngestError("Incomplete download; partial data saved. Run the command again to resume.")
+                return finish(content_type)
+        except requests.RequestException as exc:
+            raise IngestError(f"Download interrupted; retry to resume when supported: {exc}") from exc
+    raise IngestError("Server returned an invalid range; retry from a fresh download")
 
 
 def head_content_type(url, session=None):
