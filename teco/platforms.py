@@ -78,6 +78,10 @@ def canonical_url(url):
     if not p.scheme or not p.netloc:
         return url.strip()
     host = (p.hostname or "").lower()
+    if ":" in host:
+        host = f"[{host}]"
+    if p.port is not None:
+        host += f":{p.port}"
     keep = [(k, v) for k, v in urllib.parse.parse_qsl(p.query, keep_blank_values=True)
             if k.lower() not in JUNK_PARAMS]
     q = urllib.parse.urlencode(keep)
@@ -99,6 +103,10 @@ def source_key(url):
         return f"youtube:{vid}"        # 与 data.json 里 YouTube 期的 media 字段同形
     p = urllib.parse.urlsplit(url.strip())
     host = (p.hostname or "").lower()
+    if ":" in host:
+        host = f"[{host}]"
+    if p.port is not None:
+        host += f":{p.port}"
     if host.startswith("www."):
         host = host[4:]
     keep = [(k, v) for k, v in urllib.parse.parse_qsl(p.query)

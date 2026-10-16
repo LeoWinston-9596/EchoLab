@@ -50,7 +50,7 @@ def make_poster(video, out_png, at=3.0):
 
 def find_existing(url):
     """这个网址是不是已经解析过了。YouTube 按视频 ID 比对,其余按网址原文。"""
-    if not url:
+    if not url or not LIB.exists():
         return None
     from teco.platforms import youtube_id
     vid = youtube_id(url)

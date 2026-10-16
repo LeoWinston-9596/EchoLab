@@ -22,7 +22,7 @@ Run `python tests/run_all.py`. Live podcast checks are documented separately wit
 
 Each item is delivered in a separate commit with its regression tests.
 
-- [ ] Verify the existing one-command URL-to-learning-material path.
+- [x] Verify the existing one-command URL-to-learning-material path. `tests/test_process_url.py` exercises real local HTTP download, saved media/JSON/index and duplicate avoidance with isolated storage and fake models. Fixed non-default ports being removed from input URLs.
 - [ ] Validate real podcast feeds and handle encoding and very long titles.
 - [ ] Select podcast episodes by fuzzy title as well as numeric index.
 - [ ] Read English HTML `<track>` captions and bypass ASR when usable.
